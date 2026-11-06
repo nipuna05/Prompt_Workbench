@@ -1,0 +1,1914 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Prompt Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a two-panel workbench. Builder on the left, the assembled prompt pinned on the right.
+   Color is reserved for the prompt's anatomy (role, task, context...). The interface itself stays ink on grey. */
+:root{
+  --bg:#ECF0EF; --surface:#FFFFFF; --sunk:#F5F7F6; --surface-2:#E1E7E5;
+  --ink:#121A18; --muted:#56635F; --faint:#7C8985; --line:#D2DBD8; --line-strong:#B5C1BD; --on-ink:#FFFFFF;
+  --seg-role:#7C4FDC; --seg-task:#2563EB; --seg-context:#0E8FAE; --seg-style:#D23A84;
+  --seg-format:#BF7D00; --seg-rules:#D2402F; --seg-example:#1E9447;
+  --tint:15%;
+  --ok:#14804A; --bad:#B42318;
+  --shadow:0 1px 2px rgba(18,26,24,.05),0 14px 34px -10px rgba(18,26,24,.16);
+  --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --font-body:"Instrument Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1211; --surface:#151C1A; --sunk:#101615; --surface-2:#232D2A;
+    --ink:#E5ECE9; --muted:#9AA8A3; --faint:#74827D; --line:#27322F; --line-strong:#3B4945; --on-ink:#0D1211;
+    --seg-role:#A98BFF; --seg-task:#6FA2FF; --seg-context:#3FC5E2; --seg-style:#FF70B2;
+    --seg-format:#F2BD45; --seg-rules:#FF7D6B; --seg-example:#58D283;
+    --tint:22%; --ok:#4ADE80; --bad:#FF8A7A;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 34px -10px rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1211; --surface:#151C1A; --sunk:#101615; --surface-2:#232D2A;
+  --ink:#E5ECE9; --muted:#9AA8A3; --faint:#74827D; --line:#27322F; --line-strong:#3B4945; --on-ink:#0D1211;
+  --seg-role:#A98BFF; --seg-task:#6FA2FF; --seg-context:#3FC5E2; --seg-style:#FF70B2;
+  --seg-format:#F2BD45; --seg-rules:#FF7D6B; --seg-example:#58D283;
+  --tint:22%; --ok:#4ADE80; --bad:#FF8A7A;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 34px -10px rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--font-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:28px 64px;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:26px}
+h1,h2{font-family:var(--font-display);text-wrap:balance;margin:0;letter-spacing:-.015em}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* header */
+.top{display:flex;align-items:center;gap:14px;min-width:0}
+.mark{width:46px;height:46px;flex:none;border-radius:11px;background:var(--ink);display:grid;place-items:center}
+.mark svg{width:28px;height:28px}
+.top h1{font-size:clamp(25px,3.4vw,34px);font-weight:800;line-height:1.05}
+.top p{margin:5px 0 0;color:var(--muted);font-size:15px;max-width:62ch}
+
+/* main grid */
+.bench{display:grid;gap:26px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){
+  .bench{grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);align-items:start}
+  .output{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+}
+.builder{display:grid;gap:22px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+
+/* describe (AI) */
+.describe{padding:18px;display:grid;gap:12px}
+.describe-head{display:flex;align-items:center;gap:10px}
+.describe-head svg{width:22px;height:22px;flex:none}
+.describe h2{font-size:19px;font-weight:800}
+.sub{margin:0;color:var(--muted);font-size:14px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.status{margin:0;font-size:13.5px;color:var(--muted);min-width:0;flex:1 1 220px}
+.status.ok{color:var(--ok)}
+.status.bad{color:var(--bad)}
+.status.busy::before,.ai-msg.busy::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:8px;vertical-align:1px;animation:pulse .9s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.2}to{opacity:1}}
+[hidden]{display:none!important}
+.modes{display:flex;flex-wrap:wrap;gap:4px;padding:3px;background:var(--surface-2);border-radius:10px;width:max-content;max-width:100%}
+.mode{font:600 13.5px/1.1 var(--font-body);padding:8px 12px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer}
+.mode:hover{color:var(--ink)}
+.mode[aria-selected="true"],.mode[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.modes.small .mode{padding:6px 10px;font-size:12.5px}
+.step-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.form-note{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted)}
+.linkbtn{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.mode-pane{display:grid;gap:12px;min-width:0}
+.drop{position:relative;display:grid;place-items:center;gap:4px;text-align:center;padding:22px 16px;border:1.5px dashed var(--line-strong);border-radius:12px;background:var(--sunk);cursor:pointer;color:var(--ink)}
+.drop span{font-size:13px;color:var(--muted)}
+.drop:hover,.drop.over{border-color:var(--ink)}
+.drop:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+.media-pick{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);min-width:0}
+.thumb{width:min(176px,40vw);height:84px;flex:none;border-radius:8px;overflow:hidden;background:var(--surface-2);display:flex;gap:2px}
+.thumb img{display:block;flex:1;min-width:0;width:100%;height:100%;object-fit:cover}
+.mp-info{display:grid;gap:5px;min-width:0;flex:1 1 160px}
+.mp-name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-meta{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.divider{display:flex;align-items:center;gap:12px;color:var(--faint);font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:600}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* steps */
+.group{display:grid;gap:9px;min-width:0}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:var(--surface-2);color:var(--ink);margin-right:8px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cat{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:12px;border:1px solid var(--line);background:var(--surface);border-radius:10px;color:var(--ink);font:600 14px/1.2 var(--font-body);cursor:pointer;text-align:left;min-width:0}
+.cat svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.cat small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:3px;overflow-wrap:anywhere}
+.builder{container-type:inline-size}
+@container (max-width:440px){.cat small{display:none}}
+.cat:hover{border-color:var(--line-strong)}
+.cat[aria-selected="true"]{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.cat[aria-selected="true"] small{color:inherit;opacity:.72}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 13.5px/1.2 var(--font-body);padding:7px 11px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;transition:background .12s,border-color .12s}
+.chip:hover{border-color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.chip.multi[aria-pressed="true"]::before{content:"\2713\00a0"}
+.chip.dashed{border-style:dashed;color:var(--muted);background:transparent}
+.presets{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.mini{font-size:13px;color:var(--muted)}
+.banner{margin:0;padding:10px 12px;border-radius:8px;background:var(--surface-2);font-size:13.5px}
+
+/* form */
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px}
+@media (max-width:560px){.form{grid-template-columns:minmax(0,1fr)}}
+.field{display:grid;gap:7px;min-width:0;align-content:start}
+.field.wide{grid-column:1/-1}
+.flabel{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+.dot{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
+.req{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+.hint{margin:0;font-size:12.5px;color:var(--muted)}
+.inp{width:100%;font:inherit;font-size:15px;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;min-width:0}
+textarea.inp{resize:vertical;min-height:78px;line-height:1.5}
+.inp::placeholder{color:var(--faint)}
+.inp:focus{outline:2px solid var(--ink);outline-offset:0;border-color:var(--ink)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;font:600 14px/1 var(--font-body);padding:11px 16px;border-radius:9px;border:1px solid var(--ink);background:var(--ink);color:var(--on-ink);cursor:pointer}
+.btn svg{width:16px;height:16px;flex:none}
+.btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--line-strong)}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn.small{padding:7px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* output */
+.output{min-width:0}
+.out-card{padding:18px;display:grid;gap:14px;box-shadow:var(--shadow);min-width:0}
+.out-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.out-head h2{font-size:21px;font-weight:800}
+.for{font-family:var(--font-mono);font-size:12.5px;color:var(--muted)}
+.strength{display:grid;gap:7px}
+.st-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;flex-wrap:wrap}
+.st-row b{font-weight:700}
+.st-score{font-variant-numeric:tabular-nums;color:var(--muted)}
+.st-bar{display:flex;gap:3px;height:8px}
+.st-bar span{border-radius:3px;background:var(--surface-2);transition:background .2s}
+.st-bar span.on{background:var(--c)}
+.st-next{margin:0;font-size:13px;color:var(--muted)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{font:600 13.5px/1 var(--font-body);padding:10px 12px;border:0;background:none;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.prompt{margin:0;font:13.5px/1.72 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:min(54vh,560px);min-height:170px;overflow:auto;color:var(--ink)}
+.seg{background:color-mix(in srgb,var(--c) var(--tint),transparent);box-shadow:inset 0 -1.5px 0 var(--c);border-radius:2px;-webkit-box-decoration-break:clone;box-decoration-break:clone;transition:opacity .15s,background .15s}
+.seg-role{--c:var(--seg-role)} .seg-task{--c:var(--seg-task)} .seg-context{--c:var(--seg-context)} .seg-style{--c:var(--seg-style)}
+.seg-format{--c:var(--seg-format)} .seg-rules{--c:var(--seg-rules)} .seg-example{--c:var(--seg-example)}
+.prompt.focusing .seg:not(.hl){background:none;box-shadow:none;opacity:.38}
+.empty{font-family:var(--font-body);font-size:14.5px;color:var(--muted);white-space:normal;line-height:1.55}
+.empty b{color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.lg{display:inline-flex;align-items:center;gap:6px;font:500 12.5px/1 var(--font-body);padding:6px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:default}
+.lg:hover,.lg:focus-visible{border-color:var(--c)}
+.lg i{width:9px;height:9px;border-radius:3px;background:var(--c)}
+.meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.tip{margin:0;font-size:13.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+.tip b{color:var(--ink);font-weight:600}
+.ai-msg{margin:0 0 10px;font-size:13px;color:var(--muted)}
+.ai-msg.ok{color:var(--ok)} .ai-msg.bad{color:var(--bad)}
+.saved{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:min(54vh,560px);overflow:auto}
+.saved li{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);min-width:0}
+.saved .t{font-weight:600;overflow-wrap:anywhere}
+.saved .m{font-size:12.5px;color:var(--muted)}
+.saved .row{gap:6px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--ink);color:var(--on-ink);padding:10px 16px;border-radius:9px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*,*::before{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 28 28"><rect x="4" y="4.5" width="11" height="3.2" rx="1.6" style="fill:var(--seg-role)"/><rect x="4" y="10.2" width="20" height="3.2" rx="1.6" style="fill:var(--seg-task)"/><rect x="4" y="15.9" width="14" height="3.2" rx="1.6" style="fill:var(--seg-context)"/><rect x="4" y="21.6" width="8" height="3.2" rx="1.6" style="fill:var(--seg-format)"/><rect x="14" y="21.6" width="6" height="3.2" rx="1.6" style="fill:var(--seg-rules)"/></svg>
+    </div>
+    <div>
+      <h1>Prompt Workbench</h1>
+      <p>Say what you need. Get a clear, ready-to-paste prompt built for the AI tool you use: text, images, video, music and code, plus everyday tasks for QA, developers, designers, BAs, HR and PMs.</p>
+    </div>
+  </header>
+
+  <main class="bench">
+    <section class="builder" aria-label="Build your prompt">
+      <div class="card describe" id="describe">
+        <div class="describe-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" style="fill:var(--seg-task)"/><path d="M18.6 14.6l.8 2.3 2.3.8-2.3.8-.8 2.3-.8-2.3-2.3-.8 2.3-.8z" style="fill:var(--seg-style)"/><path d="M5.6 15.6l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" style="fill:var(--seg-example)"/></svg>
+          <h2>Start with AI</h2>
+        </div>
+        <div class="modes" id="modes" role="tablist" aria-label="How to start">
+          <button type="button" class="mode" role="tab" data-mode="words" aria-selected="true" aria-controls="modeWords">Describe in words</button>
+          <button type="button" class="mode" role="tab" data-mode="media" aria-selected="false" aria-controls="modeMedia">From an image or video</button>
+        </div>
+        <div id="modeWords" class="mode-pane" role="tabpanel">
+        <p class="sub" id="descSub">Write what you need. AI picks the right type of tool and fills in the form below for you.</p>
+        <label class="sr" for="desc">What do you need?</label>
+        <textarea id="desc" class="inp" rows="3" placeholder="e.g. A short, polite email to my landlord about the broken heater. Or: a bright poster image for a beach clean-up this Saturday."></textarea>
+        <div class="row">
+          <button type="button" class="btn" id="fillBtn" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M18.6 14.6l.8 2.3 2.3.8-2.3.8-.8 2.3-.8-2.3-2.3-.8 2.3-.8z"/></svg>Build with AI</button>
+          <button type="button" class="btn ghost" id="fillStop" hidden>Stop</button>
+        </div>
+        </div>
+        <div id="modeMedia" class="mode-pane" role="tabpanel" hidden>
+          <p class="sub">Have a picture or a clip but no words for it? Upload it. AI studies it and writes a prompt that recreates its look in the image or video tool you pick.</p>
+          <p class="sub" id="mediaOff" hidden>Reading images is not available in this view of the page. The other options still work.</p>
+          <label class="drop" id="drop" for="mediaFile">
+            <input type="file" id="mediaFile" class="sr" accept="image/*,video/*">
+            <b>Choose an image or video</b>
+            <span>or drop it here · JPG, PNG, WebP, GIF, MP4, WebM</span>
+          </label>
+          <div class="media-pick" id="mediaPick" hidden>
+            <div class="thumb" id="thumb"></div>
+            <div class="mp-info">
+              <div class="mp-name" id="mpName"></div>
+              <div class="mp-meta" id="mpMeta"></div>
+              <div><button type="button" class="btn ghost small" id="mpRemove">Use a different file</button></div>
+            </div>
+          </div>
+          <div class="presets"><span class="mini">Make a prompt for:</span><div class="chips" id="mediaTarget"><button type="button" class="chip" data-target="image" aria-pressed="true">An image</button><button type="button" class="chip" data-target="video" aria-pressed="false">A video</button></div></div>
+          <p class="hint" id="mediaHint" hidden></p>
+          <label class="sr" for="mediaNote">Changes to make</label>
+          <input type="text" class="inp" id="mediaNote" placeholder="Optional: what to change, e.g. same style but at night">
+          <div class="row">
+            <button type="button" class="btn" id="mediaBtn" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M18.6 14.6l.8 2.3 2.3.8-2.3.8-.8 2.3-.8-2.3-2.3-.8 2.3-.8z"/></svg>Get prompt from this</button>
+            <button type="button" class="btn ghost" id="mediaStop" hidden>Stop</button>
+          </div>
+        </div>
+        <p class="sub" id="aiOff" hidden>AI features work when you open this page in Claude. The step-by-step form below works everywhere.</p>
+        <p class="status" id="fillStatus" role="status">Connecting to Claude…</p>
+      </div>
+
+      <div class="divider"><span>or build it step by step</span></div>
+
+      <div class="group">
+        <span class="lbl" id="catLbl"><span class="n">1</span>What are you making?</span>
+        <div class="cats" id="cats" role="tablist" aria-labelledby="catLbl"></div>
+      </div>
+      <div class="group">
+        <span class="lbl" id="platLbl"><span class="n">2</span>Which AI will you use?</span>
+        <div class="chips" id="plats" role="group" aria-labelledby="platLbl"></div>
+      </div>
+      <div class="group">
+        <div class="step-head">
+          <span class="lbl"><span class="n">3</span>Fill in the details</span>
+          <div class="modes small" id="detailMode" role="group" aria-label="How many options to show"><button type="button" class="mode" data-detail="simple" aria-pressed="false">Essentials</button><button type="button" class="mode" data-detail="all" aria-pressed="true">All options</button></div>
+        </div>
+        <div class="presets"><span class="mini">Start from an example:</span><div class="chips" id="presets"></div></div>
+        <p class="banner" id="banner" hidden></p>
+      </div>
+      <form id="form" class="form" autocomplete="off" novalidate></form>
+    </section>
+
+    <aside class="output" aria-label="Your prompt">
+      <div class="card out-card">
+        <div class="out-head"><h2>Your prompt</h2><span class="for" id="forLabel"></span></div>
+        <div class="strength" id="strength"></div>
+        <div class="tabs" role="tablist" aria-label="Prompt views">
+          <button type="button" class="tab" role="tab" id="tabBuilt" data-tab="built" aria-selected="true" aria-controls="paneBuilt">Built</button>
+          <button type="button" class="tab" role="tab" id="tabAI" data-tab="ai" aria-selected="false" aria-controls="paneAI">AI-polished</button>
+          <button type="button" class="tab" role="tab" id="tabSaved" data-tab="saved" aria-selected="false" aria-controls="paneSaved">Saved</button>
+        </div>
+        <div id="paneBuilt" role="tabpanel" aria-labelledby="tabBuilt"><pre class="prompt" id="built" tabindex="0"></pre></div>
+        <div id="paneAI" role="tabpanel" aria-labelledby="tabAI" hidden><p class="ai-msg" id="aiMsg"></p><pre class="prompt" id="polished" tabindex="0"></pre></div>
+        <div id="paneSaved" role="tabpanel" aria-labelledby="tabSaved" hidden><ul class="saved" id="savedList"></ul></div>
+        <div class="legend" id="legend" aria-label="Parts of your prompt"></div>
+        <div class="meta" id="meta"><span id="counts"></span><span id="legendHint">Hover a part to see where it is</span></div>
+        <div class="actions" id="actions">
+          <button type="button" class="btn" id="copyBtn">Copy prompt</button>
+          <button type="button" class="btn ghost" id="polishBtn" hidden><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M18.6 14.6l.8 2.3 2.3.8-2.3.8-.8 2.3-.8-2.3-2.3-.8 2.3-.8z"/></svg>Polish with AI</button>
+          <button type="button" class="btn ghost" id="polStop" hidden>Stop</button>
+          <button type="button" class="btn ghost" id="saveBtn">Save</button>
+        </div>
+        <p class="tip" id="tip"></p>
+      </div>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const SEGS = ['role','task','context','style','format','rules','example'];
+
+/* ---------- text helpers ---------- */
+const has = v => Array.isArray(v) ? v.length > 0 : !!String(v == null ? '' : v).trim();
+const clean = s => String(s || '').trim().replace(/[.\s]+$/, '');
+const sent = s => { s = String(s || '').trim(); return !s ? '' : (/[.!?…"'”)\]]$/.test(s) ? s : s + '.'); };
+const lines = s => String(s || '').split(/\n+/).map(x => x.trim().replace(/^[-*•]\s*/, '')).filter(Boolean);
+const lower = s => String(s).replace(/\s*&\s*/g, ' and ').toLowerCase();
+const lowerArticle = s => s.replace(/^(A|An|The)(\s)/, (m, a, b) => a.toLowerCase() + b);
+const art = w => /^[aeiou]/i.test(w) ? 'an' : 'a';
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const joinList = a => a.length < 2 ? (a[0] || '') : a.length === 2 ? a[0] + ' and ' + a[1] : a.slice(0, -1).join(', ') + ', and ' + a[a.length - 1];
+const asRole = s => { s = clean(s).replace(/^(act as|you are|be)\s+/i, ''); return /^(a|an|the|my|our|your)\s/i.test(s) ? s : art(s) + ' ' + s; };
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function Out(){
+  const parts = [];
+  const o = {
+    parts,
+    t(text, seg){ if (text != null && text !== '') parts.push({ t: String(text), s: seg || null }); return o; },
+    gap(){ if (parts.length) parts.push({ t: '\n\n', s: null }); return o; },
+    nl(){ if (parts.length) parts.push({ t: '\n', s: null }); return o; },
+    list(items, bullet){ items.forEach(([t, s], i) => { if (i) o.t('\n'); if (bullet !== false) o.t('- '); o.t(t, s); }); return o; }
+  };
+  return o;
+}
+
+/* ---------- vocab ---------- */
+const FORMAT = {'Paragraphs':'Write it in clear paragraphs.','Bullet points':'Use bullet points.','Step-by-step':'Give numbered, step-by-step instructions.','Table':'Present the answer as a table.','Email':'Write it as a ready-to-send email.','Checklist':'Format it as a checklist.','Code':'Put any code in code blocks with short comments.','JSON':'Return valid JSON only, with no extra text.'};
+const LENGTH = {'Very short':'Keep it very short (under 50 words).','Short':'Keep it short (about 100 to 150 words).','Medium':'Aim for a medium length (about 300 words).','Detailed':'Be thorough and detailed.'};
+const EXTRA = {'Ask me questions first':'Before you start, ask me up to 3 questions if anything important is unclear.','Explain your reasoning':'Briefly explain your reasoning before the final answer.','Give 3 options':'Give me 3 different options to choose from.','Double-check facts':'Double-check facts and say clearly when you are not sure.'};
+const IMG_STYLE = {'Photorealistic':'photorealistic photo','Cinematic photo':'cinematic film still','3D render':'3D render','Digital illustration':'digital illustration','Watercolor':'watercolor painting','Oil painting':'oil painting','Flat vector':'flat vector illustration','Anime':'anime-style illustration','Pixel art':'pixel art image','Line art':'line art drawing','Isometric':'isometric illustration'};
+const IMG_LIGHT = {'Soft natural light':'soft natural light','Golden hour':'golden hour sunlight','Studio lighting':'soft studio lighting','Dramatic':'dramatic high-contrast lighting','Neon glow':'neon glow','Moody':'moody low-key lighting','Bright & airy':'bright, airy light','Magical glow':'soft magical glow'};
+const IMG_COMP = {'Close-up':'close-up','Portrait':'portrait framing','Wide shot':'wide shot','Top-down':'top-down view','Low angle':'low-angle view','Centered':'centered composition','Rule of thirds':'rule-of-thirds composition','Macro':'macro shot'};
+const ASPECT_WORD = {'1:1':'square','4:5':'portrait','3:2':'landscape','16:9':'widescreen','9:16':'vertical'};
+const SD_SIZE = {'1:1':'1024 × 1024','4:5':'896 × 1152','3:2':'1216 × 832','16:9':'1344 × 768','9:16':'768 × 1344'};
+const CAM = {'Static shot':'static, locked-off shot','Slow pan':'slow pan across the scene','Dolly in':'slow dolly in toward the subject','Tracking shot':'smooth tracking shot following the subject','Drone / aerial':'aerial drone shot gliding forward','Handheld':'handheld camera with natural movement','Orbit':'camera slowly orbits the subject','Zoom out':'slow zoom out that reveals the scene'};
+const VID_STYLE = {'Cinematic':'cinematic','Documentary':'documentary','Commercial / ad':'polished commercial','Animated 3D':'3D animated','Anime':'anime','Stop-motion':'stop-motion','Vintage film':'vintage 16mm film','Hyperreal':'hyperrealistic'};
+const VID_LIGHT = {'Golden hour':'golden hour light','Soft daylight':'soft daylight','Night & neon':'night scene with neon lights','Dramatic shadows':'dramatic shadows','Overcast':'soft overcast light','Studio light':'clean studio lighting'};
+const DUR = {'5 s':'5 seconds','8 s':'8 seconds','10 s':'10 seconds','15 s':'15 seconds','20 s':'20 seconds','30 s':'30 seconds','1 min':'1 minute','2–3 min':'2–3 minutes'};
+const VOCAL_TAG = {'Female voice':'female vocals','Male voice':'male vocals','Duet':'male and female duet','Choir':'choir','No vocals':'instrumental, no vocals'};
+const VO_VOICE = {'Female voice':'warm female voice','Male voice':'clear male voice','Duet':'two voices, one female and one male','Choir':'a group of voices','No vocals':'neutral voice'};
+const TEMPO_TAG = {'Slow':'slow tempo','Medium':'mid-tempo','Fast':'fast, upbeat tempo'};
+const VO_PACE = {'Slow':'slow','Medium':'measured','Fast':'brisk'};
+const STRUCT = {'Song':'[Intro]\n[Verse 1]\n[Chorus]\n[Verse 2]\n[Chorus]\n[Bridge]\n[Chorus]\n[Outro]','Jingle':'[Hook]\n[Tagline]','Instrumental':'[Instrumental]','Podcast intro':'[Intro]\n[Instrumental]\n[Fade out]'};
+const TASK_GUIDE = {
+  'New feature':['Follow the patterns already used in this codebase.'],
+  'Fix a bug':['Find the root cause before you change any code.','Add a test that fails before the fix and passes after it.'],
+  'Write tests':['Follow the existing test structure and naming.','Make each test independent and repeatable.'],
+  'Refactor':['Keep the behavior exactly the same.','Make sure the existing tests still pass.'],
+  'Code review':['Do not change any code. Report findings only.','For each finding, give the file, line, severity, and a suggested fix.'],
+  'Explain code':['Start with a short overview, then walk through the key parts.','Use plain language and point to file names and lines.']
+};
+const PROCESS = {'Plan first':'Show me a short plan before you change any code, and wait for my OK.','Run the tests':'Run the tests and fix any failures before you finish.','Keep changes small':'Keep the change as small as possible. Do not touch unrelated code.','Summarize changes':'When you finish, summarize what you changed and why.'};
+
+/* ---------- categories ---------- */
+const ICONS = {
+  chat:'<path d="M4 5.5h16v10.5H10l-6 4.5z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  work:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18M11 12.5v2h2v-2"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/>',
+  video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.5l5-3v9l-5-3z"/>',
+  audio:'<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  code:'<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/>'
+};
+
+/* ---------- work tasks by job role ---------- */
+const softLower = s => String(s).replace(/\s*&\s*/g, ' and ').replace(/\b([A-Z])([a-z]+)\b/g, (m, a, b) => a.toLowerCase() + b);
+const lowAll = a => a.map(softLower);
+const pick = (f, x) => {
+  if (f.type === 'chips') return f.opts.includes(x) ? x : null;
+  if (f.type === 'multi' || f.type === 'toggles') { const a = (Array.isArray(x) ? x : []).filter(y => f.opts.includes(y)); return a.length ? a : null; }
+  return has(x) ? String(x).trim() : null;
+};
+const WF = {
+  /* QA */
+  testTypes:{label:'Test types to cover',type:'multi',opts:['Functional','Negative','Boundary & edge','UI','Security','Accessibility','Regression','Smoke'],say:x => 'Cover these test types: ' + joinList(lowAll(x)) + '.'},
+  tcFormat:{label:'Format',type:'chips',opts:['Table','Gherkin (BDD)','Step-by-step','Checklist','CSV for import'],say:x => ({'Table':'Present the test cases as a table.','Gherkin (BDD)':'Write each test case as a Gherkin scenario (Given / When / Then).','Step-by-step':'Write numbered steps with an expected result for each step.','Checklist':'Present the test cases as a checklist.','CSV for import':'Return the test cases as CSV with a header row, ready to import.'})[x]},
+  tcCount:{label:'How many',type:'chips',opts:['About 10','About 20','As many as needed'],say:x => x === 'As many as needed' ? 'Write as many test cases as needed for full coverage.' : 'Write ' + x.toLowerCase() + ' test cases.'},
+  tcTool:{label:'Test management tool',type:'chips',opts:['Azure DevOps','Jira (Xray / Zephyr)','TestRail','Excel'],say:x => 'Format them so they are easy to import into ' + x + '.'},
+  language:{label:'Language',type:'chips',opts:['TypeScript','JavaScript','Java','C#','Python']},
+  uiFramework:{label:'Framework',type:'chips',opts:['Playwright','Selenium','Cypress','WebdriverIO','Appium','Robot Framework']},
+  runner:{label:'Test runner and libraries',type:'text',ph:'e.g. NUnit, xUnit, JUnit 5, TestNG, pytest, Jest'},
+  steps:{label:'Steps to automate',type:'area',ph:'One step per line'},
+  locators:{label:'Page elements or locators',type:'area',ph:'Optional: IDs, data-testid values, or an HTML snippet'},
+  patterns:{label:'Patterns',type:'multi',opts:['Page Object Model','Data-driven','BDD (Cucumber / Reqnroll)','Reusable fixtures','Parallel-safe'],say:x => 'Use these patterns: ' + joinList(x) + '.'},
+  ci:{label:'Run in CI',type:'chips',opts:['Azure Pipelines','GitHub Actions','Jenkins','GitLab CI'],say:x => 'Include ' + art(x) + ' ' + x + ' pipeline (YAML) that runs the tests and publishes the results.'},
+  apiType:{label:'API type',type:'chips',opts:['REST','GraphQL','gRPC','SOAP','Events / message queue']},
+  apiTool:{label:'Tool or library',type:'chips',opts:['Postman / Newman','REST Assured','Playwright API','RestSharp','HttpClient + xUnit','pytest + requests','Karate','SuperTest']},
+  endpoints:{label:'Endpoints and samples',type:'area',ph:'Methods, URLs, request and response examples, or an OpenAPI snippet'},
+  authInfo:{label:'Authentication',type:'text',ph:'e.g. Bearer token from /auth/login'},
+  integrations:{label:'Integration points',type:'multi',opts:['Database','Third-party API','Message queue / events','Authentication (OAuth / JWT)','File storage','Email / SMS'],say:x => 'Test the integration with: ' + joinList(lowAll(x)) + '. Verify the data is correct at each hand-off, end to end.'},
+  apiChecks:{label:'What to check',type:'multi',opts:['Status codes','Response schema / contract','Data saved in the database','Error handling','Auth & permissions','Response time'],say:x => 'Check: ' + joinList(lowAll(x)) + '.'},
+  env:{label:'Environment',type:'text',ph:'e.g. Chrome 130, Windows 11, build 2.4.1, staging'},
+  reproSteps:{label:'Steps to reproduce',type:'area',ph:'One step per line'},
+  actual:{label:'What happened',type:'area'},
+  expected:{label:'What should happen',type:'area'},
+  severity:{label:'Severity',type:'chips',opts:['Critical','High','Medium','Low']},
+  tracker:{label:'Bug tracker',type:'chips',opts:['Azure DevOps','Jira','GitHub Issues'],say:x => 'Format it for ' + x + ' with a title, repro steps, expected and actual results, severity, and environment.'},
+  scope:{label:'In scope and out of scope',type:'area'},
+  testLevels:{label:'Test levels',type:'multi',opts:['Unit','Integration','System','End-to-end','UAT','Performance','Security']},
+  environments:{label:'Test environments',type:'text',ph:'e.g. QA, staging, UAT'},
+  timeline:{label:'Timeline',type:'text',ph:'e.g. 2 sprints, release on [date]'},
+  dataFields:{label:'Fields and rules',type:'area',ph:'e.g. email: valid format; age: 18 to 65'},
+  rows:{label:'Rows',type:'chips',opts:['10','25','50','100'],say:x => 'Generate ' + x + ' rows.'},
+  dataFormat:{label:'Data format',type:'chips',opts:['JSON','CSV','SQL INSERT statements','Table'],say:x => 'Return the data as ' + (x === 'Table' ? 'a table' : x) + '.'},
+  dataMix:{label:'Include',type:'multi',opts:['Valid data','Invalid data','Edge cases','Unicode & special characters'],say:x => 'Include ' + joinList(lowAll(x)) + '.'},
+  perfTool:{label:'Tool',type:'chips',opts:['k6','JMeter','Gatling','Locust','Azure Load Testing']},
+  load:{label:'Load profile',type:'text',ph:'e.g. ramp to 200 users over 5 min, hold 15 min'},
+  thresholds:{label:'Pass criteria',type:'text',ph:'e.g. p95 under 500 ms, errors under 1%'},
+  /* Developer */
+  devLang:{label:'Language',type:'chips',opts:['TypeScript','JavaScript','C#','Java','Python','Go','Kotlin','Swift','SQL']},
+  devFramework:{label:'Framework or libraries',type:'text',ph:'e.g. ASP.NET Core 8, React 18, Spring Boot'},
+  code:{label:'Code',type:'area',ph:'Paste the code here'},
+  error:{label:'Error message or stack trace',type:'area'},
+  tried:{label:'What you already tried',type:'text'},
+  codeExtras:{label:'Also include',type:'multi',opts:['Unit tests','Comments','Error handling','Usage example'],say:x => 'Also include ' + joinList(lowAll(x)) + '.'},
+  reviewFocus:{label:'Focus on',type:'multi',opts:['Bugs','Security','Performance','Readability','Best practices','Test coverage'],say:x => 'Focus on ' + joinList(lowAll(x)) + '.'},
+  unitFramework:{label:'Test framework',type:'text',ph:'e.g. xUnit + Moq, Jest, JUnit 5 + Mockito, pytest'},
+  unitCover:{label:'Cover',type:'multi',opts:['Happy path','Edge cases','Error handling','Mocks for dependencies'],say:x => 'Cover ' + joinList(lowAll(x)) + '.'},
+  apiStyle:{label:'API style',type:'chips',opts:['REST','GraphQL','gRPC']},
+  apiOut:{label:'Output',type:'chips',opts:['OpenAPI (YAML)','Endpoint table','Request and response examples'],say:x => ({'OpenAPI (YAML)':'Return an OpenAPI 3 specification in YAML.','Endpoint table':'Present the endpoints as a table: method, path, purpose, request, response, status codes.','Request and response examples':'Give request and response examples for every endpoint.'})[x]},
+  db:{label:'Database',type:'chips',opts:['SQL Server','PostgreSQL','MySQL','Oracle','SQLite']},
+  schema:{label:'Tables and columns',type:'area',ph:'Paste the table definitions or describe them'},
+  docType:{label:'Document type',type:'chips',opts:['README','API reference','Code comments','Architecture overview','Release notes']},
+  /* UI / UX */
+  product:{label:'Product or app',type:'text',ph:'e.g. a food delivery mobile app'},
+  users:{label:'Users',type:'text',ph:'e.g. busy parents, first-time users'},
+  flowOut:{label:'Show it as',type:'chips',opts:['Numbered steps','Table','Mermaid diagram'],say:x => ({'Numbered steps':'Show the flow as numbered steps.','Table':'Show the flow as a table: step, screen, user action, system response.','Mermaid diagram':'Show the flow as a Mermaid flowchart, then explain it briefly.'})[x]},
+  copyTypes:{label:'Copy needed',type:'multi',opts:['Buttons','Error messages','Empty states','Onboarding','Tooltips','Notifications']},
+  voice:{label:'Voice',type:'chips',opts:['Friendly','Professional','Playful','Concise']},
+  charLimit:{label:'Length limits',type:'text',ph:'e.g. buttons max 20 characters'},
+  screen:{label:'Screen description',type:'area',ph:'Describe the layout, or paste notes. You can also attach a screenshot in your AI tool.'},
+  uxFocus:{label:'Review for',type:'multi',opts:['Visual hierarchy','Consistency','Usability','Accessibility','Mobile layout','Copy'],say:x => 'Review it for ' + joinList(lowAll(x)) + '.'},
+  wcag:{label:'Standard',type:'chips',opts:['WCAG 2.2 AA','WCAG 2.2 AAA']},
+  uxPlatform:{label:'Platform',type:'chips',opts:['Web','iOS','Android','Desktop']},
+  participants:{label:'Participants',type:'text',ph:'e.g. 5 existing customers'},
+  uxTasks:{label:'Tasks to test',type:'area',ph:'One task per line'},
+  uxMethod:{label:'Method',type:'chips',opts:['Moderated','Unmoderated','Remote','In person']},
+  states:{label:'States',type:'multi',opts:['Default','Hover','Focus','Pressed','Disabled','Error','Loading']},
+  uiTech:{label:'Build with',type:'chips',opts:['React + Tailwind','HTML & CSS','Vue','Flutter','SwiftUI']},
+  uiStyle:{label:'Visual style',type:'chips',opts:['Minimal','Corporate','Playful','Bold & colorful','Dark mode']},
+  /* Business analyst */
+  storyFormat:{label:'Acceptance criteria',type:'chips',opts:['Gherkin (Given / When / Then)','Checklist'],say:x => 'Write acceptance criteria for each story ' + (x === 'Checklist' ? 'as a checklist.' : 'in Gherkin (Given / When / Then).')},
+  storyExtras:{label:'Also add',type:'multi',opts:['Story point estimate','INVEST check','Split large stories','Edge cases'],say:x => 'Also add: ' + joinList(lowAll(x)) + '.'},
+  reqDoc:{label:'Document type',type:'chips',opts:['BRD','FRD','SRS','PRD']},
+  reqSections:{label:'Sections',type:'multi',opts:['Objectives','Scope','Stakeholders','Functional requirements','Non-functional requirements','Assumptions','Risks','Glossary'],say:x => 'Include these sections: ' + joinList(x) + '.'},
+  actors:{label:'Actors',type:'text',ph:'e.g. Customer, Admin, Payment service'},
+  flowState:{label:'Version',type:'chips',opts:['Current (as-is)','Future (to-be)','Both']},
+  flowFormat:{label:'Show it as',type:'chips',opts:['Numbered steps','Swimlane table','Mermaid diagram','BPMN description'],say:x => ({'Numbered steps':'Show the process as numbered steps, naming who does each one.','Swimlane table':'Show the process as a swimlane table with one column per actor.','Mermaid diagram':'Show the process as a Mermaid flowchart with one subgraph per actor, then explain it.','BPMN description':'Describe the process in BPMN terms: events, tasks, gateways, and lanes.'})[x]},
+  ucFormat:{label:'Format',type:'chips',opts:['Full use case','Brief use case','Table'],say:x => ({'Full use case':'Write a fully dressed use case.','Brief use case':'Write a brief use case of one or two paragraphs.','Table':'Present the use case as a table.'})[x]},
+  current:{label:'Current state',type:'area'},
+  desired:{label:'Desired state',type:'area'},
+  meetingType:{label:'Meeting type',type:'chips',opts:['Discovery workshop','Requirements interview','Demo feedback','Sign-off']},
+  stakeholders:{label:'Stakeholders',type:'text',ph:'e.g. finance manager, call center lead'},
+  /* HR */
+  level:{label:'Level',type:'chips',opts:['Intern','Junior','Mid-level','Senior','Lead','Manager']},
+  workMode:{label:'Work mode',type:'chips',opts:['On-site','Hybrid','Remote']},
+  location:{label:'Location',type:'text',ph:'City and country'},
+  company:{label:'About the company',type:'text',ph:'One or two lines'},
+  skills:{label:'Key skills and requirements',type:'area',ph:'One per line'},
+  jdInclude:{label:'Include',type:'multi',opts:['Responsibilities','Requirements','Nice to have','Benefits','Salary range','How to apply'],say:x => 'Include these sections: ' + joinList(x) + '.'},
+  qTypes:{label:'Question types',type:'multi',opts:['Technical','Behavioral (STAR)','Situational','Culture fit','Practical task']},
+  qCount:{label:'How many',type:'chips',opts:['5','10','15','20'],say:x => 'Write ' + x + ' questions.'},
+  rubric:{label:'For each question',type:'multi',opts:['Scoring guide','Ideal answer','Red flags'],say:x => 'For each question, add ' + joinList(lowAll(x)) + '.'},
+  onbDuration:{label:'Plan length',type:'chips',opts:['First week','30 days','30-60-90 days']},
+  team:{label:'Team',type:'text',ph:'e.g. 2 developers, 1 QA, 1 designer'},
+  country:{label:'Country or region',type:'text',ph:'Laws differ by country'},
+  audience:{label:'Audience',type:'text',ph:'e.g. all employees, managers'},
+  achievements:{label:'Achievements',type:'area'},
+  improve:{label:'Areas to improve',type:'area'},
+  hrTone:{label:'Tone',type:'chips',opts:['Supportive','Direct','Formal','Encouraging','Friendly'],say:x => 'Use ' + art(x) + ' ' + x.toLowerCase() + ' tone.'},
+  channel:{label:'Channel',type:'chips',opts:['Email','Teams / Slack','Intranet','Notice board']},
+  /* Project manager */
+  method:{label:'Method',type:'chips',opts:['Scrum','Kanban','Waterfall','Hybrid']},
+  duration:{label:'Duration',type:'text',ph:'e.g. 3 months, starting [date]'},
+  planInclude:{label:'Include',type:'multi',opts:['Milestones','Timeline','Work breakdown','RACI','Risks','Budget'],say:x => 'Include: ' + joinList(lowAll(x)) + '.'},
+  backlog:{label:'Backlog items',type:'area',ph:'One per line, with estimates if you have them'},
+  capacity:{label:'Team capacity',type:'text',ph:'e.g. 4 people, about 20 story points'},
+  sprintLen:{label:'Sprint length',type:'chips',opts:['1 week','2 weeks','3 weeks']},
+  reportFor:{label:'Report for',type:'chips',opts:['Executives','Client','Team']},
+  rag:{label:'Overall status',type:'chips',opts:['Green','Amber','Red']},
+  progress:{label:'Progress this period',type:'area'},
+  blockers:{label:'Blockers and risks',type:'area'},
+  knownRisks:{label:'Known risks or concerns',type:'area'},
+  meetLen:{label:'Meeting length',type:'chips',opts:['15 min','30 min','45 min','60 min']},
+  attendees:{label:'Attendees',type:'text'},
+  retroFormat:{label:'Format',type:'chips',opts:['Start / Stop / Continue','Mad / Sad / Glad','4Ls','Went well / To improve'],say:x => 'Use the ' + x + ' format.'},
+  /* Everyday (non-technical) */
+  msgType:{label:'Type of message',type:'chips',opts:['Text message','Email','Letter','Social post','Card or note']},
+  msgTone:{label:'Tone',type:'chips',opts:['Polite','Friendly','Professional','Firm','Warm','Apologetic'],say:x => 'Use ' + art(x) + ' ' + x.toLowerCase() + ' tone.'},
+  msgLength:{label:'Length',type:'chips',opts:['Short','Medium','Detailed'],say:x => ({'Short':'Keep it short.','Medium':'Keep it to a medium length.','Detailed':'Include all the important details.'})[x]},
+  readerLevel:{label:'Reader level',type:'chips',opts:['No special knowledge','Complete beginner','Some experience','Expert']},
+  sumLength:{label:'Summary length',type:'chips',opts:['1 sentence','5 bullet points','1 paragraph','1 page'],say:x => 'Keep the summary to ' + x + '.'},
+  explainStyle:{label:'Explain with',type:'multi',opts:['An everyday example','Steps in order','A simple comparison','A short summary at the end'],say:x => 'Use ' + joinList(lowAll(x)) + '.'},
+  budget:{label:'Budget',type:'text',ph:'e.g. about $500'},
+  when:{label:'When',type:'text',ph:'e.g. next month, Friday to Sunday'},
+  planStyle:{label:'Plan format',type:'chips',opts:['Day-by-day schedule','Checklist','Timeline','Table'],say:x => 'Present the plan as ' + art(x) + ' ' + softLower(x) + '.'},
+  priorities:{label:'What matters most to you',type:'text',ph:'e.g. price, quality, ease of use'},
+  learnTime:{label:'Time you have',type:'text',ph:'e.g. 30 minutes a day'},
+  fixWhat:{label:'Improve',type:'multi',opts:['Fix grammar and spelling','Make it clearer','Make it shorter','Make it more formal','Make it friendlier'],say:x => cap(joinList(lowAll(x))) + '.'},
+  /* Sales & marketing */
+  mktTone:{label:'Tone',type:'chips',opts:['Persuasive','Friendly','Premium','Playful','Professional'],say:x => 'Use ' + art(x) + ' ' + x.toLowerCase() + ' tone.'},
+  mktLength:{label:'Length',type:'chips',opts:['Short (about 50 words)','Medium (about 150 words)','Long (about 300 words)'],say:x => 'Keep it ' + x.toLowerCase() + '.'},
+  socialPlatform:{label:'Social platform',type:'chips',opts:['LinkedIn','Instagram','Facebook','X','TikTok']},
+  cta:{label:'Call to action',type:'text',ph:'e.g. Book a free demo'},
+  adPlatform:{label:'Ad platform',type:'chips',opts:['Google Ads','Meta (Facebook and Instagram)','LinkedIn Ads','YouTube']},
+  prospect:{label:'Who you are writing to',type:'text',ph:'e.g. HR managers at mid-size companies'},
+  valueProp:{label:'What you offer',type:'text',ph:'e.g. software that saves 10 hours a month'},
+  period:{label:'Period',type:'chips',opts:['1 week','2 weeks','1 month']},
+  /* Customer support */
+  issueFacts:{label:'Facts about the case',type:'area',ph:'What happened, and what you can offer'},
+  channelSup:{label:'Channel',type:'chips',opts:['Email','Live chat','Phone script','Social media reply']},
+  questions:{label:'Questions to answer',type:'area',ph:'One per line'},
+  /* Teacher & student */
+  subjectArea:{label:'Subject',type:'text',ph:'e.g. Science, English, Math'},
+  gradeLevel:{label:'Level',type:'chips',opts:['Primary school','Secondary school','University','Adult learners']},
+  lessonLength:{label:'Lesson length',type:'chips',opts:['30 min','45 min','60 min','90 min']},
+  quizType:{label:'Question types',type:'multi',opts:['Multiple choice','True or false','Short answer','Fill in the blank']},
+  notesStyle:{label:'Notes style',type:'chips',opts:['Bullet points','Q&A flashcards','Outline','One-page summary'],say:x => 'Write the notes as ' + ({'Bullet points':'bullet points','Q&A flashcards':'question-and-answer flashcards','Outline':'an outline','One-page summary':'a one-page summary'})[x] + '.'},
+  feedbackFocus:{label:'Feedback on',type:'multi',opts:['Structure','Argument','Grammar','Clarity','Use of sources'],say:x => 'Give feedback on ' + joinList(lowAll(x)) + '.'},
+  /* Office & admin */
+  recipient:{label:'Who it is to',type:'text',ph:'e.g. the landlord, a supplier'},
+  sheetApp:{label:'Spreadsheet app',type:'chips',opts:['Excel','Google Sheets']},
+  sheetLayout:{label:'How your sheet is laid out',type:'area',ph:'e.g. Column A: date, Column B: category, Column C: amount'}
+};
+Object.entries(WF).forEach(([id, f]) => { f.id = id; f.seg = f.say ? 'format' : 'context'; });
+
+const WORK = [
+  {id:'qa', label:'QA / Tester', persona:'a senior QA engineer with deep experience in test design, test automation, and API and integration testing', tasks:[
+    {name:'Test cases', subj:'Feature or requirement to test', ph:'Describe the feature, or paste the user story and its acceptance criteria', goal:'Write test cases for the feature or requirement below.',
+      fields:['testTypes','tcFormat','tcCount','tcTool'],
+      deliver:['Give each test case an ID, title, preconditions, steps, test data, expected result, and priority.','Make every step specific enough for someone new to the product to follow.'],
+      ex:{subject:'The login page of our web app. Users sign in with email and password. The account locks for 15 minutes after 5 failed attempts. There is a "Remember me" checkbox and a "Forgot password" link.',testTypes:['Functional','Negative','Boundary & edge','Security'],tcFormat:'Table',tcCount:'About 20',tcTool:'Azure DevOps'}},
+    {name:'Automation script', subj:'What should the test check?', ph:'e.g. A user can log in and sees their name on the dashboard', goal:'Write an automated UI test for the scenario below.',
+      fields:['language','uiFramework','runner','steps','locators','patterns','ci'],
+      deliver:['Return complete, runnable code with all imports, split into files where it makes sense.','Use stable locators (test IDs, roles, or labels) and built-in waits. Never use fixed sleeps.','Add a clear assertion for every expected result.','After the code, explain how to install the dependencies and run the tests.'],
+      ex:{subject:'A user with a valid account can log in and sees their name on the dashboard.',language:'C#',uiFramework:'Playwright',runner:'NUnit',steps:'1. Open the login page at [your app URL]/login\n2. Enter a valid email and password\n3. Click "Sign in"\n4. Check that the dashboard heading shows the user\'s name',patterns:['Page Object Model','Data-driven'],ci:'Azure Pipelines'}},
+    {name:'API & integration tests', subj:'Which API or integration should be tested?', goal:'Write automated API and integration tests for the service below.',
+      fields:['language','apiTool','apiType','endpoints','authInfo','integrations','apiChecks','ci'],
+      deliver:['Return complete, runnable test code with setup and cleanup.','Keep test data independent so the tests can run in any order and in parallel.','Cover success and failure responses for each endpoint.'],
+      ex:{subject:'The Orders API. Creating an order should save it to the database and publish an "OrderCreated" event.',language:'C#',apiTool:'HttpClient + xUnit',apiType:'REST',endpoints:'POST /api/orders  {"productId": 12, "quantity": 2}  ->  201 {"id": 345, "status": "Pending"}\nGET /api/orders/{id}  ->  200',authInfo:'Bearer token from POST /api/auth/login',integrations:['Database','Message queue / events','Authentication (OAuth / JWT)'],apiChecks:['Status codes','Response schema / contract','Data saved in the database','Error handling']}},
+    {name:'Bug report', subj:'Short summary of the bug', goal:'Turn my notes into a clear, complete bug report.',
+      fields:['env','severity','reproSteps','actual','expected','tracker'],
+      deliver:['Write a short, specific title.','Number the steps to reproduce.','Suggest a possible cause only if the notes point to one, and label it as a guess.'],
+      ex:{subject:'The Checkout button does nothing in Safari.',env:'Safari 17, macOS 14, build 3.2.0, staging',severity:'High',reproSteps:'Add any item to the cart\nOpen the cart page\nClick Checkout',actual:'Nothing happens. The browser console shows "TypeError: undefined is not a function".',expected:'The checkout page opens.',tracker:'Azure DevOps'}},
+    {name:'Test plan', subj:'Project or release to plan testing for', goal:'Write a test plan for the project or release below.',
+      fields:['environments','timeline','testLevels','scope'],
+      deliver:['Include objectives, scope, approach, test levels, environments, entry and exit criteria, risks, schedule, and deliverables.','Present the schedule and the risks as tables.'],
+      ex:{subject:'Release 2.0 of our HR portal, with new leave management and payroll export modules.',environments:'QA, staging, UAT',timeline:'3 sprints, release planned for [date]',testLevels:['Integration','System','End-to-end','UAT'],scope:'In scope: leave requests, approvals, payroll CSV export.\nOut of scope: the existing login and profile pages.'}},
+    {name:'Test data', subj:'What is the data for?', goal:'Generate realistic test data for the scenario below.',
+      fields:['dataFields','rows','dataFormat','dataMix'],
+      deliver:['Use realistic but fake values. Never use real personal data.','Mark each row as valid or invalid, and give the reason for each invalid row.'],
+      ex:{subject:'Employee records for testing the employee registration form.',dataFields:'name: 2 to 50 letters\nemail: valid format, unique\nphone: international format\ndate of birth: age 18 to 65\ndepartment: HR, IT, Finance or Sales',rows:'25',dataFormat:'JSON',dataMix:['Valid data','Invalid data','Edge cases','Unicode & special characters']}},
+    {name:'Performance test', subj:'What should be load tested?', goal:'Write a performance test script for the system below.',
+      fields:['perfTool','load','thresholds','endpoints','ci'],
+      deliver:['Return a complete, runnable script with realistic think times and test data.','Explain how to run it and how to read the results.'],
+      ex:{subject:'The product search and checkout flow of our online store.',perfTool:'k6',load:'Ramp up to 200 virtual users over 5 minutes, then hold for 15 minutes',thresholds:'p95 response time under 500 ms, error rate under 1%',endpoints:'GET /api/products?search=shoes\nPOST /api/cart\nPOST /api/checkout'}}
+  ]},
+  {id:'dev', label:'Developer', persona:'a senior software engineer who writes clean, secure, well-tested code', tasks:[
+    {name:'Write code', subj:'What should the code do?', goal:'Write code for the requirement below.',
+      fields:['devLang','devFramework','codeExtras'],
+      deliver:['Return complete, working code.','Follow the usual conventions for the language and keep functions small.','Briefly explain any important design choices.'],
+      ex:{subject:'A function that validates a password: at least 12 characters, with an uppercase letter, a number, and a symbol. It returns the list of rules that failed.',devLang:'C#',devFramework:'.NET 8',codeExtras:['Unit tests','Comments']}},
+    {name:'Debug an error', subj:'What is going wrong?', goal:'Help me find and fix the cause of the problem below.',
+      fields:['devLang','devFramework','tried','error','code'],
+      deliver:['Explain the most likely root cause first, in plain language.','Show the fixed code and what changed.','Tell me how to confirm that the fix works.'],
+      ex:{subject:'The API returns a 500 error when I save a user with an empty phone number.',devLang:'C#',devFramework:'ASP.NET Core 8, Entity Framework Core',tried:'Checked that the request body is correct',error:'System.NullReferenceException: Object reference not set to an instance of an object.\n   at UserService.Normalize(User user) in UserService.cs:line 42',code:'[Paste the relevant code here]'}},
+    {name:'Code review', subj:'What does this code do?', goal:'Review the code below.',
+      fields:['devLang','code','reviewFocus'],
+      deliver:['List findings by severity (critical, major, minor), each with the line, the problem, and a suggested fix.','End with the 3 most important changes to make first.'],
+      ex:{subject:'A service that imports employee data from a CSV file into the database.',devLang:'Python',code:'[Paste your code here]',reviewFocus:['Bugs','Security','Performance','Readability']}},
+    {name:'Unit tests', subj:'What code should be tested?', goal:'Write unit tests for the code below.',
+      fields:['devLang','unitFramework','code','unitCover'],
+      deliver:['Use test names that describe the behavior.','Follow the Arrange, Act, Assert structure.'],
+      ex:{subject:'The DiscountCalculator class, which applies percentage and fixed discounts up to a maximum cap.',devLang:'Java',unitFramework:'JUnit 5 + Mockito',code:'[Paste the class here]',unitCover:['Happy path','Edge cases','Error handling','Mocks for dependencies']}},
+    {name:'API design', subj:'What should the API do?', goal:'Design an API for the requirement below.',
+      fields:['apiStyle','devFramework','apiOut'],
+      deliver:['Use consistent naming, correct status codes, pagination, and one standard error format.','Point out security considerations.'],
+      ex:{subject:'An API for leave requests. Employees create and cancel requests; managers approve or reject them.',apiStyle:'REST',devFramework:'ASP.NET Core 8',apiOut:'OpenAPI (YAML)'}},
+    {name:'SQL query', subj:'What question should the query answer?', goal:'Write a SQL query that answers the question below.',
+      fields:['db','schema'],
+      deliver:['Explain the query step by step.','Suggest indexes that would make it faster.'],
+      ex:{subject:'The top 5 departments by average salary, counting only active employees hired in the last 3 years.',db:'SQL Server',schema:'Employees(Id, Name, DepartmentId, Salary, HireDate, IsActive)\nDepartments(Id, Name)'}},
+    {name:'Documentation', subj:'What should be documented?', goal:'Write documentation for the code or project below.',
+      fields:['docType','devLang','code'],
+      deliver:['Start with what it is for and how to get started.','Use clear headings and short, working examples.'],
+      ex:{subject:'Our internal authentication library, used by 4 services.',docType:'README',devLang:'TypeScript',code:'[Paste the main code or public API here]'}}
+  ]},
+  {id:'ux', label:'UI / UX designer', persona:'a senior UI/UX designer with strong usability and accessibility expertise', tasks:[
+    {name:'User flow', subj:'Which journey should be mapped?', goal:'Map the user flow below.',
+      fields:['product','users','flowOut'],
+      deliver:['Include the happy path, decision points, and error states.','Point out steps where users are likely to drop off, and why.'],
+      ex:{subject:'A new user signs up and books their first fitness class.',product:'A fitness class booking mobile app',users:'Busy professionals, first-time users',flowOut:'Numbered steps'}},
+    {name:'UX copy', subj:'Which screen or feature needs copy?', goal:'Write UX copy for the screen or feature below.',
+      fields:['product','charLimit','copyTypes','voice'],
+      deliver:['Give 2 options for each piece of copy.','Keep it clear, short, and focused on the action.'],
+      ex:{subject:'The payment step of checkout, including card errors.',product:'An online grocery store',charLimit:'Buttons: max 20 characters. Errors: max 90 characters.',copyTypes:['Buttons','Error messages','Empty states'],voice:'Friendly'}},
+    {name:'Design review', subj:'Which design should be reviewed?', goal:'Review the design described below and suggest improvements.',
+      fields:['screen','uxPlatform','uxFocus'],
+      deliver:['List issues from most to least important, each with a concrete fix.','Call out what already works well.'],
+      ex:{subject:'The dashboard of our HR app.',screen:'Top bar with logo and search. Left menu with 9 items. The main area has 6 chart cards of the same size, with a table of recent requests below. Primary buttons are grey.',uxPlatform:'Web',uxFocus:['Visual hierarchy','Usability','Accessibility']}},
+    {name:'Accessibility check', subj:'What should be checked?', goal:'Check the design or page below for accessibility problems.',
+      fields:['screen','wcag','uxPlatform'],
+      deliver:['For each issue, give the WCAG success criterion, why it matters, and how to fix it.','Group the issues by severity.'],
+      ex:{subject:'Our sign-up form.',screen:'Light grey placeholder text is the only label. Errors are shown only in red text. The submit button is an icon with no text. There is an image captcha at the end.',wcag:'WCAG 2.2 AA',uxPlatform:'Web'}},
+    {name:'Usability test plan', subj:'What should be tested with users?', goal:'Write a usability test plan for the feature below.',
+      fields:['product','participants','uxMethod','uxTasks'],
+      deliver:['Include goals, participant criteria, tasks with success criteria, a moderator script, and follow-up questions.','Word the tasks neutrally so they do not lead the participant.'],
+      ex:{subject:'The new expense claim feature.',product:'A company expense app',participants:'5 employees who submit expenses every month',uxMethod:'Remote',uxTasks:'Submit a taxi receipt\nFind the status of a past claim'}},
+    {name:'Component spec', subj:'Which component?', goal:'Write a design and development spec for the UI component below.',
+      fields:['states','uxPlatform','uiTech'],
+      deliver:['Cover anatomy, variants, states, spacing, behavior, keyboard support, and accessibility.','Add usage dos and don\'ts.'],
+      ex:{subject:'A date range picker for filtering reports.',states:['Default','Hover','Focus','Disabled','Error'],uxPlatform:'Web',uiTech:'React + Tailwind'}},
+    {name:'UI generator prompt', subj:'Which screen should be generated?', goal:'Write a detailed prompt I can paste into an AI UI generator (such as v0, Lovable, Bolt, or Figma Make) to build the screen below.',
+      fields:['product','uiStyle','uiTech','screen'],
+      deliver:['Describe the layout, sections, components, sample content, colors, and responsive behavior.','Return only the prompt for the UI generator.'],
+      ex:{subject:'A landing page for a team task manager.',product:'Taskly, a task manager for small teams',uiStyle:'Minimal',uiTech:'React + Tailwind',screen:'Hero with a headline and a sign-up button, 3 feature cards, pricing with 3 plans, an FAQ, and a footer.'}}
+  ]},
+  {id:'ba', label:'Business analyst', persona:'an experienced business analyst who writes clear, testable requirements', tasks:[
+    {name:'User stories', subj:'Which feature or need?', goal:'Write user stories for the feature below.',
+      fields:['users','storyFormat','storyExtras'],
+      deliver:['Use the format: As a [user], I want [goal], so that [benefit].','Keep each story small enough to finish in one sprint.'],
+      ex:{subject:'Employees can apply for leave online, and managers approve or reject it.',users:'Employee, manager, HR admin',storyFormat:'Gherkin (Given / When / Then)',storyExtras:['Edge cases','Story point estimate']}},
+    {name:'Requirements document', subj:'What is the project or feature?', goal:'Write a requirements document for the project below.',
+      fields:['users','reqDoc','reqSections'],
+      deliver:['Number every requirement (for example FR-01, NFR-01) so it can be traced.','Make each requirement specific and testable.'],
+      ex:{subject:'An online portal where customers track their insurance claims.',users:'Customers, claim agents, managers',reqDoc:'BRD',reqSections:['Objectives','Scope','Stakeholders','Functional requirements','Non-functional requirements','Assumptions','Risks']}},
+    {name:'Process flow', subj:'Which process?', goal:'Describe the business process below.',
+      fields:['actors','flowState','flowFormat'],
+      deliver:['Show who does each step, the decision points, and the hand-offs.','Point out bottlenecks and ideas to improve them.'],
+      ex:{subject:'Approval of purchase requests.',actors:'Employee, line manager, Finance, Procurement',flowState:'Both',flowFormat:'Swimlane table'}},
+    {name:'Use cases', subj:'Which feature?', goal:'Write use cases for the feature below.',
+      fields:['actors','ucFormat'],
+      deliver:['Include preconditions, the main flow, alternative flows, exceptions, and postconditions.'],
+      ex:{subject:'Reset a forgotten password.',actors:'User, email service',ucFormat:'Full use case'}},
+    {name:'Gap analysis', subj:'Which area are you analyzing?', goal:'Do a gap analysis for the area below.',
+      fields:['current','desired'],
+      deliver:['Present it as a table: area, current state, desired state, gap, recommended action, priority.'],
+      ex:{subject:'Employee onboarding.',current:'Paper forms. IT sets up accounts by hand. It takes 5 days.',desired:'Online forms. Accounts are created automatically and ready on day 1.'}},
+    {name:'Stakeholder questions', subj:'What is the project?', goal:'Prepare questions to ask stakeholders about the project below.',
+      fields:['stakeholders','meetingType'],
+      deliver:['Group the questions by topic: goals, users, process, data, business rules, and risks.','Mark the must-ask questions.'],
+      ex:{subject:'Replacing our spreadsheet-based inventory tracking with a web app.',stakeholders:'Warehouse manager, finance lead, store staff',meetingType:'Discovery workshop'}}
+  ]},
+  {id:'hr', label:'HR', persona:'an experienced HR professional who writes clear, fair, and inclusive content', tasks:[
+    {name:'Job description', subj:'Job title', goal:'Write a job description for the role below.',
+      fields:['level','workMode','location','company','skills','jdInclude'],
+      deliver:['Use inclusive, bias-free language.','Keep it easy to scan with short bullet points.'],
+      ex:{subject:'QA Automation Engineer',level:'Senior',workMode:'Hybrid',location:'[City, Country]',company:'[One or two lines about your company]',skills:'5+ years in test automation\nPlaywright or Selenium with C# or TypeScript\nAPI testing\nCI/CD pipelines in Azure DevOps',jdInclude:['Responsibilities','Requirements','Nice to have','Benefits','How to apply']}},
+    {name:'Interview questions', subj:'Which role are you interviewing for?', goal:'Write interview questions for the role below.',
+      fields:['level','qCount','qTypes','rubric'],
+      deliver:['Order the questions from warm-up to most challenging.'],
+      ex:{subject:'Business Analyst',level:'Mid-level',qCount:'10',qTypes:['Behavioral (STAR)','Situational','Practical task'],rubric:['Scoring guide','Red flags']}},
+    {name:'Onboarding plan', subj:'Which role is joining?', goal:'Create an onboarding plan for a new hire in the role below.',
+      fields:['team','onbDuration','workMode'],
+      deliver:['Include goals, activities, people to meet, training, and check-in points.','Present it as a table by day or by week.'],
+      ex:{subject:'Junior Developer',team:'4 developers, 1 QA engineer, 1 product owner',onbDuration:'30-60-90 days',workMode:'Hybrid'}},
+    {name:'Policy draft', subj:'What should the policy cover?', goal:'Draft an HR policy on the topic below.',
+      fields:['country','audience','company'],
+      deliver:['Include the purpose, scope, the policy itself, responsibilities, and who to contact with questions.','Use plain language.','Mark any points that need legal review.'],
+      ex:{subject:'Remote and hybrid working.',country:'[Country]',audience:'All employees',company:'A software company with 150 employees'}},
+    {name:'Performance review', subj:"Employee's role", goal:'Write a balanced performance review for the employee below.',
+      fields:['achievements','improve','hrTone'],
+      deliver:['Use specific examples, not general praise.','End with 2 or 3 clear goals for the next period.'],
+      ex:{subject:'QA Engineer',achievements:'Automated 120 regression tests, cutting test time from 2 days to 3 hours.\nMentored a new team member.',improve:'Raising blockers earlier.',hrTone:'Encouraging'}},
+    {name:'Announcement', subj:'What are you announcing?', goal:'Write an internal announcement about the topic below.',
+      fields:['audience','channel','hrTone'],
+      deliver:['Lead with the key message, then the details, then what people need to do.'],
+      ex:{subject:'A new wellness program with free gym membership, starting next month.',audience:'All employees',channel:'Email',hrTone:'Friendly'}}
+  ]},
+  {id:'pm', label:'Project manager', persona:'an experienced project manager skilled in agile and traditional delivery', tasks:[
+    {name:'Project plan', subj:'What is the project?', goal:'Create a project plan for the project below.',
+      fields:['duration','team','method','planInclude'],
+      deliver:['Present the milestones and timeline as a table.','List assumptions and dependencies.'],
+      ex:{subject:'Launching a mobile app for booking meeting rooms.',duration:'4 months',team:'3 developers, 1 QA engineer, 1 designer, 1 product owner',method:'Scrum',planInclude:['Milestones','Timeline','Work breakdown','RACI','Risks']}},
+    {name:'Sprint planning', subj:'Sprint goal', goal:'Help me plan a sprint with the goal below.',
+      fields:['capacity','sprintLen','backlog'],
+      deliver:['Suggest which backlog items fit, with reasons.','Flag dependencies and risks.','Write a one-sentence sprint goal.'],
+      ex:{subject:'Users can reset their password and update their profile.',capacity:'4 people, about 20 story points',sprintLen:'2 weeks',backlog:'Password reset email (5 points)\nProfile edit page (8 points)\nAvatar upload (5 points)\nAudit logging (3 points)\nFix login timeout bug (2 points)'}},
+    {name:'Status report', subj:'Which project?', goal:'Write a project status report for the project below.',
+      fields:['reportFor','rag','progress','blockers'],
+      deliver:['Start with a two-sentence summary and the overall status.','Then list progress, next steps, risks, and decisions needed.'],
+      ex:{subject:'HR portal 2.0',reportFor:'Executives',rag:'Amber',progress:'Leave module finished and tested.\nPayroll export 70% done.',blockers:'Access to the payroll vendor API is delayed by one week.'}},
+    {name:'Risk register', subj:'Which project?', goal:'Create a risk register for the project below.',
+      fields:['duration','team','knownRisks'],
+      deliver:['Present it as a table: ID, risk, likelihood, impact, score, owner, mitigation, contingency.','Add likely risks that I have not listed.'],
+      ex:{subject:'Moving our on-premise database to the cloud.',duration:'6 weeks',team:'2 developers, 1 DBA, 1 QA engineer',knownRisks:'Possible downtime during the move\nThe team has limited cloud experience'}},
+    {name:'Meeting agenda', subj:'What is the meeting about?', goal:'Create an agenda for the meeting below.',
+      fields:['meetLen','attendees'],
+      deliver:['State the meeting goal and the decisions needed at the top.','Give each item a time slot and an owner.'],
+      ex:{subject:'Kick-off for the customer portal project.',meetLen:'60 min',attendees:'Sponsor, project manager, tech lead, QA lead, business analyst, designer'}},
+    {name:'Notes to actions', subj:'Paste your meeting notes', goal:'Turn the meeting notes below into a clear summary.',
+      fields:[],
+      deliver:['Include a short summary, the decisions made, and the action items as a table with owner and due date.','Mark anything unclear as [to confirm].'],
+      ex:{subject:'Talked about the release date. Alex said the API will be ready Friday. Sam needs the test environment before testing can start. We agreed to move the release to the 20th. Someone needs to tell the client.'}},
+    {name:'Retrospective', subj:'How did the sprint go?', goal:'Help me run a sprint retrospective based on the summary below.',
+      fields:['team','retroFormat'],
+      deliver:['Suggest discussion questions and 3 concrete improvement actions.','Keep the tone blameless and constructive.'],
+      ex:{subject:'We delivered 18 of 24 points. Two stories were blocked by unclear requirements. Testing was squeezed into the last two days.',team:'6 people',retroFormat:'Start / Stop / Continue'}}
+  ]},
+  {id:'sales', label:'Sales & marketing', persona:'an experienced marketer and copywriter who writes clear, persuasive, honest copy', tasks:[
+    {name:'Product description', subj:'What is the product?', goal:'Write a product description for the product below.',
+      fields:['audience','mktTone','mktLength'],
+      deliver:['Lead with the main benefit, then the key features.','Avoid exaggerated claims.'],
+      ex:{subject:'Handmade soy candles in glass jars with a 40-hour burn time. Scents: lavender, vanilla, sandalwood.',audience:'People shopping for gifts online',mktTone:'Premium',mktLength:'Short (about 50 words)'}},
+    {name:'Social media post', subj:'What is the post about?', goal:'Write a social media post about the topic below.',
+      fields:['audience','cta','socialPlatform','mktTone'],
+      deliver:['Match the style and length that work best on that platform.','Suggest 3 to 5 relevant hashtags.','Give 2 versions to choose from.'],
+      ex:{subject:'Our bakery now delivers fresh bread every morning before 8 AM.',audience:'Local families and office workers',cta:'Order through the link in our bio',socialPlatform:'Instagram',mktTone:'Friendly'}},
+    {name:'Marketing email', subj:'What is the email about?', goal:'Write a marketing email about the topic below.',
+      fields:['audience','cta','mktTone'],
+      deliver:['Give 3 subject line options.','Keep paragraphs short and end with one clear call to action.'],
+      ex:{subject:'20% off all yoga classes for new members this month.',audience:'Newsletter subscribers who have never booked a class',cta:'Book your first class',mktTone:'Friendly'}},
+    {name:'Ad copy', subj:'What are you advertising?', goal:'Write ad copy for the product or offer below.',
+      fields:['audience','cta','adPlatform'],
+      deliver:['Respect the character limits of that ad platform.','Give 3 headline options and 3 description options.'],
+      ex:{subject:'An online English speaking course for working adults, with live evening classes.',audience:'Working adults aged 25 to 45',cta:'Start your free trial',adPlatform:'Google Ads'}},
+    {name:'Sales outreach', subj:'What do you want from this message?', goal:'Write a short sales outreach message for the goal below.',
+      fields:['prospect','valueProp','cta'],
+      deliver:['Keep it under 120 words and make it about the reader, not about us.','Add a follow-up message to send if there is no reply.'],
+      ex:{subject:'Book a 20-minute call to show our product.',prospect:'HR managers at companies with 50 to 300 employees',valueProp:'Payroll software that saves about 10 hours of work every month',cta:'Reply with a time that suits you'}},
+    {name:'Content calendar', subj:'What is the business or theme?', goal:'Create a content calendar for the business below.',
+      fields:['audience','socialPlatform','period'],
+      deliver:['Present it as a table: date, post idea, format, caption idea.','Mix helpful, fun, and promotional posts.'],
+      ex:{subject:'A small family-run coffee shop.',audience:'Students and young professionals nearby',socialPlatform:'Instagram',period:'1 month'}}
+  ]},
+  {id:'support', label:'Customer support', persona:'a warm, experienced customer support specialist', tasks:[
+    {name:'Reply to a customer', subj:'Paste the customer\'s message', goal:'Write a reply to the customer message below.',
+      fields:['issueFacts','channelSup','msgTone'],
+      deliver:['Thank the customer, show that you understand the problem, and give a clear next step.','Do not promise anything that is not in the facts.'],
+      ex:{subject:'"I ordered a jacket 10 days ago and it still has not arrived. This is really frustrating."',issueFacts:'The parcel was delayed at the courier. New delivery date: Thursday. We can offer free shipping on the next order.',channelSup:'Email',msgTone:'Apologetic'}},
+    {name:'Handle a complaint', subj:'What is the complaint?', goal:'Help me respond to the complaint below and calm the situation.',
+      fields:['issueFacts','channelSup'],
+      deliver:['Write a reply that acknowledges the problem without blaming anyone.','Suggest what we could offer to make it right.','List things to avoid saying.'],
+      ex:{subject:'A customer says our staff were rude on the phone and wants to cancel their subscription.',issueFacts:'The call recording shows the agent was short with them. The customer has been with us for 3 years.',channelSup:'Email'}},
+    {name:'FAQ answers', subj:'Which product or service?', goal:'Write clear FAQ answers for the product or service below.',
+      fields:['questions','msgTone'],
+      deliver:['Keep each answer under 80 words.','Use simple words a first-time customer would understand.'],
+      ex:{subject:'Our online grocery delivery service.',questions:'How much is delivery?\nCan I change my order after paying?\nWhat if an item is missing?',msgTone:'Friendly'}},
+    {name:'Reply templates', subj:'Which situations need a template?', goal:'Write reusable reply templates for the situations below.',
+      fields:['channelSup','msgTone'],
+      deliver:['Mark the parts to personalize, like [Customer name].','Keep each template short.'],
+      ex:{subject:'Refund approved, refund rejected, item out of stock, delivery delayed.',channelSup:'Live chat',msgTone:'Friendly'}}
+  ]},
+  {id:'edu', label:'Teacher & student', persona:'an experienced teacher who makes learning clear and engaging', tasks:[
+    {name:'Lesson plan', subj:'What is the lesson topic?', goal:'Create a lesson plan for the topic below.',
+      fields:['subjectArea','gradeLevel','lessonLength'],
+      deliver:['Include learning goals, a warm-up, main activities with timings, a check for understanding, and homework.'],
+      ex:{subject:'The water cycle',subjectArea:'Science',gradeLevel:'Primary school',lessonLength:'45 min'}},
+    {name:'Quiz or worksheet', subj:'What topic should it cover?', goal:'Create a quiz on the topic below.',
+      fields:['gradeLevel','qCount','quizType'],
+      deliver:['Mix easy and harder questions.','Put the answer key at the end.'],
+      ex:{subject:'Fractions: adding and comparing',gradeLevel:'Primary school',qCount:'10',quizType:['Multiple choice','Short answer']}},
+    {name:'Study notes', subj:'What topic do you want to study?', goal:'Create study notes for the topic below.',
+      fields:['gradeLevel','notesStyle'],
+      deliver:['Focus on the most important ideas and simple ways to remember them.'],
+      ex:{subject:'The causes of World War I',gradeLevel:'Secondary school',notesStyle:'Q&A flashcards'}},
+    {name:'Essay feedback', subj:'Paste the essay', goal:'Give feedback on the essay below.',
+      fields:['gradeLevel','feedbackFocus'],
+      deliver:['Start with what works well.','Give 3 specific ways to improve, with examples from the essay.','Do not rewrite the whole essay.'],
+      ex:{subject:'[Paste the essay here]',gradeLevel:'University',feedbackFocus:['Structure','Argument','Clarity']}}
+  ]},
+  {id:'office', label:'Office & admin', persona:'an experienced office administrator who writes clear, professional documents', tasks:[
+    {name:'Formal letter', subj:'What is the letter about?', goal:'Write a formal letter about the topic below.',
+      fields:['recipient','msgTone'],
+      deliver:['Use a standard formal letter layout, with placeholders for addresses and the date.'],
+      ex:{subject:'Ask to extend the lease on our office for one more year at the same rent.',recipient:'Our landlord, [Name]',msgTone:'Professional'}},
+    {name:'Spreadsheet formula', subj:'What should the formula do?', goal:'Write a spreadsheet formula that does the following.',
+      fields:['sheetApp','sheetLayout'],
+      deliver:['Give the formula ready to paste, and say which cell to put it in.','Explain how it works in simple words.'],
+      ex:{subject:'Add up all the amounts in the "Travel" category for March.',sheetApp:'Excel',sheetLayout:'Column A: date\nColumn B: category\nColumn C: amount\nRows 2 to 500'}},
+    {name:'Meeting invite', subj:'What is the meeting for?', goal:'Write a meeting invitation for the meeting below.',
+      fields:['when','attendees','meetLen'],
+      deliver:['Include the purpose, agenda, date and time, place or link, and what to prepare.'],
+      ex:{subject:'Quarterly budget review',when:'[Date], 10:00 AM',attendees:'Department heads',meetLen:'60 min'}},
+    {name:'Report summary', subj:'Paste the report or numbers', goal:'Summarize the report below for busy readers.',
+      fields:['audience','sumLength'],
+      deliver:['Start with the key takeaway.','Point out any numbers that changed a lot.'],
+      ex:{subject:'[Paste the report or figures here]',audience:'Senior management',sumLength:'5 bullet points'}},
+    {name:'Step-by-step guide', subj:'Which process?', goal:'Write a clear step-by-step guide for the process below.',
+      fields:['audience'],
+      deliver:['Number the steps and keep each one short.','Add a short troubleshooting section at the end.'],
+      ex:{subject:'How to book a meeting room in our online booking system.',audience:'New employees'}}
+  ]},
+  {id:'everyday', label:'Everyday (non-technical)', persona:'a friendly, patient assistant who explains things in plain, simple language', tasks:[
+    {name:'Write a message', subj:'What do you want to say, and to whom?', goal:'Help me write the message below.',
+      fields:['msgType','msgTone','msgLength'],
+      deliver:['Use simple, clear words.','Give me the message ready to send.'],
+      ex:{subject:'Ask my neighbor politely to keep their dog quiet at night, because I start work early.',msgType:'Text message',msgTone:'Polite',msgLength:'Short'}},
+    {name:'Summarize something', subj:'Paste the text you want summarized', goal:'Summarize the text below in plain language.',
+      fields:['sumLength','readerLevel'],
+      deliver:['Start with the main point in one sentence, then list the key points.','Tell me if anything needs action from me, and by when.'],
+      ex:{subject:'[Paste the letter, article, or document here]',sumLength:'5 bullet points',readerLevel:'No special knowledge'}},
+    {name:'Explain simply', subj:'What do you want explained?', goal:'Explain the topic below so I can understand it easily.',
+      fields:['readerLevel','explainStyle'],
+      deliver:['Avoid jargon. If you must use a special term, explain it.'],
+      ex:{subject:'What is the difference between a debit card and a credit card?',readerLevel:'No special knowledge',explainStyle:['An everyday example','A short summary at the end']}},
+    {name:'Plan something', subj:'What are you planning?', goal:'Help me plan the following.',
+      fields:['budget','when','planStyle'],
+      deliver:['Make the plan practical and realistic.','Point out anything I should book or buy early.'],
+      ex:{subject:'A 3-day family trip to the beach with two young children.',budget:'About $600',when:'Next month, Friday to Sunday',planStyle:'Day-by-day schedule'}},
+    {name:'Compare options', subj:'What are you deciding between?', goal:'Help me compare the options below and choose.',
+      fields:['priorities'],
+      deliver:['Compare the options side by side in a simple table.','Give a clear recommendation and explain why.'],
+      ex:{subject:'Buying a new phone: [Phone A] or [Phone B].',priorities:'Battery life, camera, price under $500'}},
+    {name:'Learn something new', subj:'What do you want to learn?', goal:'Help me learn the skill or topic below.',
+      fields:['readerLevel','learnTime'],
+      deliver:['Break it into small steps I can follow.','Suggest one small practice task after each step.'],
+      ex:{subject:'How to use formulas in Excel to add up my monthly expenses.',readerLevel:'Complete beginner',learnTime:'30 minutes a day'}},
+    {name:'Improve my writing', subj:'Paste your text', goal:'Improve the text below.',
+      fields:['fixWhat','msgTone'],
+      deliver:['Show the improved version first.','Then list the main changes you made.'],
+      ex:{subject:'[Paste your text here]',fixWhat:['Fix grammar and spelling','Make it clearer','Make it shorter'],msgTone:'Professional'}}
+  ]}
+];
+const ROLE_NAMES = WORK.map(r => r.label);
+const roleOf = v => WORK.find(r => r.label.toLowerCase() === String(v.role || '').toLowerCase() || r.id === v.role) || WORK[0];
+const taskOf = v => { const r = roleOf(v); return r.tasks.find(t => t.name.toLowerCase() === String(v.task || '').toLowerCase()) || r.tasks[0]; };
+
+const CATS = {
+  chat: {
+    label:'Text & chat', sub:'ChatGPT, Claude, Gemini',
+    platforms:['ChatGPT','Claude','Gemini','Copilot','Any AI'],
+    seg:{role:'Role',task:'Task',context:'Context',style:'Tone',format:'Output',rules:'Rules',example:'Example'},
+    fields:[
+      {id:'task',label:'What do you want the AI to do?',type:'area',seg:'task',req:true,wide:true,ph:'e.g. Write an email to my landlord asking them to fix the broken heater'},
+      {id:'role',label:'Act as',type:'text',seg:'role',ph:'e.g. an experienced HR manager',hint:'A role sets the expertise and voice.'},
+      {id:'audience',label:'Who is it for?',type:'text',seg:'context',ph:'e.g. my manager, beginners, customers'},
+      {id:'context',label:'Background details',type:'area',seg:'context',wide:true,ph:'The situation, facts the AI needs, or text to work with'},
+      {id:'tone',label:'Tone',type:'multi',seg:'style',opts:['Professional','Friendly','Formal','Casual','Persuasive','Simple & clear','Enthusiastic','Empathetic']},
+      {id:'format',label:'Format',type:'chips',seg:'format',opts:['Paragraphs','Bullet points','Step-by-step','Table','Email','Checklist','Code','JSON']},
+      {id:'length',label:'Length',type:'chips',seg:'format',opts:['Very short','Short','Medium','Detailed']},
+      {id:'rules',label:'Must include or avoid',type:'area',seg:'rules',wide:true,ph:'One rule per line'},
+      {id:'example',label:'Example of a good answer',type:'area',seg:'example',wide:true,ph:'Optional. Paste a sample so the AI can match its style.'},
+      {id:'extras',label:'Extras',type:'toggles',seg:'rules',opts:['Ask me questions first','Explain your reasoning','Give 3 options','Double-check facts']}
+    ],
+    score:[
+      {seg:'task',w:30,need:['task'],tip:'Say what you want the AI to do'},
+      {seg:'context',w:20,need:['context','audience'],tip:'Add background details or who it is for'},
+      {seg:'format',w:15,need:['format','length'],tip:'Pick a format or length'},
+      {seg:'role',w:10,need:['role'],tip:'Give the AI a role (Act as…)'},
+      {seg:'style',w:10,need:['tone'],tip:'Choose a tone'},
+      {seg:'rules',w:10,need:['rules','extras'],tip:'Add a rule about what to include or avoid'},
+      {seg:'example',w:5,need:['example'],tip:'Paste an example of a good answer'}
+    ],
+    presets:[
+      {name:'Email',v:{role:'a professional business writer',task:'Write an email to my manager asking for two days of leave next week (Thursday and Friday) for a family event.',context:'I have finished my sprint tasks early, and a teammate has agreed to cover urgent support issues while I am away.',audience:'My manager, who prefers short and direct messages',tone:['Professional','Friendly'],format:'Email',length:'Short',rules:'Include a clear subject line.\nSay that I can be reached by phone for emergencies.'}},
+      {name:'Explain a topic',v:{role:'a patient teacher',task:'Explain how compound interest works.',audience:'A 15-year-old with no finance background',tone:['Simple & clear','Friendly'],format:'Step-by-step',length:'Medium',rules:'Use one real-life example with numbers.\nExplain any jargon the first time you use it.'}},
+      {name:'Summarize',v:{role:'a business analyst',task:'Summarize the document below into key points and decisions.',context:'[Paste your document here]',audience:'Busy managers',format:'Bullet points',length:'Short',rules:'List deadlines and owners separately at the end.',extras:['Double-check facts']}},
+      {name:'Social post',v:{role:'a social media marketer',task:'Write a LinkedIn post announcing that our team launched a mobile app for booking fitness classes.',audience:'Professionals interested in health and technology',tone:['Enthusiastic','Professional'],format:'Paragraphs',length:'Short',rules:'Add 3 relevant hashtags at the end.\nEnd with a question that invites comments.',extras:['Give 3 options']}},
+      {name:'Test cases',v:{role:'a senior QA engineer',task:'Write test cases for the login page of a web application.',context:'Users sign in with email and password. Accounts lock after 5 failed attempts. The page has a "Forgot password" link and a "Remember me" checkbox.',format:'Table',length:'Detailed',rules:'Use the columns: ID, Title, Steps, Expected result, Priority.\nCover positive, negative, and edge cases.'}},
+      {name:'Plan an event',v:{role:'an experienced event planner',task:'Plan a one-day team-building event for 25 people.',context:'The budget is about $1,500. The team works remotely and meets in person twice a year.',format:'Checklist',length:'Detailed',rules:'Include a timeline for the day and a budget breakdown.',extras:['Ask me questions first']}}
+    ],
+    build(v, p){
+      const o = Out(), X = p === 'Claude';
+      const sec = (title, tag, fill) => { o.gap().t(X ? '<' + tag + '>\n' : '## ' + title + '\n'); fill(); if (X) o.t('\n</' + tag + '>'); };
+      if (has(v.role)) o.t('You are ' + asRole(v.role) + '.', 'role');
+      sec('Task', 'task', () => o.t(sent(v.task), 'task'));
+      if (has(v.context) || has(v.audience)) sec('Context', 'context', () => {
+        if (has(v.context)) o.t(v.context.trim(), 'context');
+        if (has(v.audience)) { if (has(v.context)) o.t('\n'); o.t('Audience: ' + sent(v.audience), 'context'); }
+      });
+      const out = [];
+      if (v.format && FORMAT[v.format]) out.push([FORMAT[v.format], 'format']);
+      if (v.length && LENGTH[v.length]) out.push([LENGTH[v.length], 'format']);
+      if (has(v.tone)) { const t = joinList(v.tone.map(lower)); out.push(['Use ' + art(t) + ' ' + t + ' tone.', 'style']); }
+      if (out.length) sec('Output format', 'output_format', () => o.list(out));
+      const rules = lines(v.rules).map(r => [sent(r), 'rules']);
+      (v.extras || []).forEach(x => { if (x !== 'Ask me questions first' && EXTRA[x]) rules.push([EXTRA[x], 'rules']); });
+      if (rules.length) sec('Rules', 'rules', () => o.list(rules));
+      if (has(v.example)) sec('Example', 'example', () => { if (!X) o.t('Here is an example of the kind of answer I want:\n'); o.t(v.example.trim(), 'example'); });
+      if ((v.extras || []).includes('Ask me questions first')) o.gap().t(EXTRA['Ask me questions first'], 'rules');
+      return o.parts;
+    }
+  },
+
+  work: {
+    label:'Tasks by role', sub:'QA, Dev, BA, HR, PM, everyday',
+    platforms:['ChatGPT','Claude','Gemini','Copilot','Claude Code','Cursor','Any AI'],
+    seg:{role:'Role',task:'Task',context:'Details',format:'Deliverable',rules:'Rules'},
+    normalize(v){ v.role = roleOf(v).label; v.task = taskOf(v).name; },
+    fieldsFor(v){
+      const r = roleOf(v), t = taskOf(v);
+      return [
+        {id:'role',label:'Your role',type:'chips',seg:'role',opts:ROLE_NAMES,sticky:true,rerender:true},
+        {id:'task',label:'Task',type:'chips',seg:'task',opts:r.tasks.map(x => x.name),sticky:true,rerender:true},
+        {id:'subject',label:t.subj,type:'area',seg:'task',req:true,wide:true,ph:t.ph || ''},
+        ...t.fields.map(id => WF[id]),
+        {id:'context',label:'Background details',type:'area',seg:'context',ph:'Anything else the AI should know'},
+        {id:'rules',label:'Must include or avoid',type:'area',seg:'rules',ph:'One rule per line'},
+        {id:'extras',label:'Extras',type:'toggles',seg:'rules',opts:Object.keys(EXTRA)}
+      ];
+    },
+    scoreFor(v){
+      const ids = taskOf(v).fields, n = ids.length;
+      const items = [{seg:'task',w:35,need:['subject'],tip:'Fill in the main field'}];
+      ids.forEach(id => items.push({seg:WF[id].seg,w:Math.round(40 / n),need:[id],tip:'Fill in "' + WF[id].label + '"'}));
+      items.push({seg:'context',w:n ? 15 : 55,need:['context'],tip:'Add background details'});
+      items.push({seg:'rules',w:10,need:['rules','extras'],tip:'Add a rule or an extra'});
+      return items;
+    },
+    presetsFor(v){ const r = roleOf(v), t = taskOf(v); return [{name:t.name, v:Object.assign({role:r.label, task:t.name}, t.ex)}]; },
+    schema(){
+      const out = ['- category "work" (' + this.label + ': ready-made tasks by job role, for QA testers, developers, UI/UX designers, business analysts, HR, project managers, sales and marketing, customer support, teachers and students, office staff, and non-technical everyday use)',
+        '  platforms: ' + JSON.stringify(this.platforms),
+        '  common fields: role (one of ' + JSON.stringify(ROLE_NAMES) + '), task (one of the task names listed under that role), subject (text: the main input, described per task), context (text), rules (text, one per line), extras (list, any of ' + JSON.stringify(Object.keys(EXTRA)) + ')',
+        '  tasks by role, with each task\'s extra fields:'];
+      WORK.forEach(r => {
+        out.push('    role "' + r.label + '":');
+        r.tasks.forEach(t => out.push('      - task "' + t.name + '" (subject: ' + t.subj + ')' + (t.fields.length ? ': ' + t.fields.map(id => id + ' (' + typeDesc(WF[id]) + ')').join('; ') : '')));
+      });
+      return out.join('\n');
+    },
+    build(v, p){
+      const o = Out(), X = p === 'Claude';
+      const r = roleOf(v), t = taskOf(v);
+      const sec = (title, tag, fill) => { o.gap().t(X ? '<' + tag + '>\n' : '## ' + title + '\n'); fill(); if (X) o.t('\n</' + tag + '>'); };
+      o.t('You are ' + r.persona + '.', 'role');
+      sec('Task', 'task', () => { o.t(t.goal, 'task').t('\n\n').t(String(v.subject).trim(), 'task'); });
+      const short = [], long = [], del = [];
+      t.fields.forEach(id => {
+        const f = WF[id], x = pick(f, v[id]); if (x == null) return;
+        if (f.say) del.push([f.say(x), 'format']);
+        else if (f.type === 'area') long.push(f.label + ':\n' + x);
+        else short.push([f.label + ': ' + (Array.isArray(x) ? x.join(', ') : x), 'context']);
+      });
+      if (has(v.context)) long.push('Background:\n' + String(v.context).trim());
+      if (short.length || long.length) sec('Details', 'details', () => {
+        o.list(short);
+        long.forEach((txt, i) => { if (short.length || i) o.t('\n\n'); o.t(txt, 'context'); });
+      });
+      sec('What to deliver', 'deliverable', () => o.list([...t.deliver.map(d => [d, 'format']), ...del]));
+      const rules = lines(v.rules).map(x => [sent(x), 'rules']);
+      (v.extras || []).forEach(x => { if (x !== 'Ask me questions first' && EXTRA[x]) rules.push([EXTRA[x], 'rules']); });
+      if (rules.length) sec('Rules', 'rules', () => o.list(rules));
+      if ((v.extras || []).includes('Ask me questions first')) o.gap().t(EXTRA['Ask me questions first'], 'rules');
+      return o.parts;
+    }
+  },
+
+  image: {
+    label:'Image', sub:'Midjourney, ChatGPT, Firefly',
+    platforms:['Midjourney','ChatGPT images','Stable Diffusion','Adobe Firefly','Ideogram','Any image AI'],
+    seg:{task:'Subject',context:'Scene',style:'Style',format:'Framing',example:'Text',rules:'Avoid'},
+    fields:[
+      {id:'subject',label:'What should the image show?',type:'area',seg:'task',req:true,wide:true,ph:'e.g. A red vintage bicycle leaning against a blue wooden door'},
+      {id:'setting',label:'Setting or background',type:'text',seg:'context',ph:'e.g. a quiet street in the old town'},
+      {id:'colors',label:'Colors',type:'text',seg:'style',ph:'e.g. pastel pink and mint'},
+      {id:'style',label:'Style',type:'chips',seg:'style',opts:Object.keys(IMG_STYLE)},
+      {id:'lighting',label:'Lighting',type:'chips',seg:'style',opts:Object.keys(IMG_LIGHT)},
+      {id:'composition',label:'Framing',type:'chips',seg:'format',opts:Object.keys(IMG_COMP)},
+      {id:'aspect',label:'Shape',type:'chips',seg:'format',opts:Object.keys(ASPECT_WORD)},
+      {id:'text',label:'Text in the image',type:'text',seg:'example',ph:'Exact words, if any'},
+      {id:'avoid',label:'Leave out',type:'text',seg:'rules',ph:'e.g. people, watermarks, blur'}
+    ],
+    score:[
+      {seg:'task',w:30,need:['subject'],tip:'Describe what the image should show'},
+      {seg:'style',w:20,need:['style'],tip:'Pick a style'},
+      {seg:'context',w:15,need:['setting'],tip:'Add a setting or background'},
+      {seg:'style',w:10,need:['lighting'],tip:'Choose the lighting'},
+      {seg:'format',w:10,need:['composition','aspect'],tip:'Pick a framing or shape'},
+      {seg:'rules',w:10,need:['avoid'],tip:'Say what to leave out'},
+      {seg:'style',w:5,need:['colors'],tip:'Name the colors you want'}
+    ],
+    presets:[
+      {name:'Product photo',v:{subject:'A matte black stainless steel water bottle with a bamboo lid',setting:'On a wet slate surface with a few fresh green leaves',style:'Photorealistic',lighting:'Studio lighting',composition:'Close-up',colors:'black, deep green, soft grey',aspect:'4:5',avoid:'text, logos, hands'}},
+      {name:'Logo',v:{subject:'A minimal logo mark for a coffee shop: a coffee cup whose steam forms two mountain peaks',setting:'Plain white background',style:'Flat vector',composition:'Centered',colors:'warm brown and cream',text:'Hilltop Brew',aspect:'1:1',avoid:'gradients, photo effects, extra text'}},
+      {name:'Portrait',v:{subject:'An elderly fisherman with a weathered face and a knitted cap, smiling warmly',setting:'A small harbor at dawn with wooden boats behind him',style:'Cinematic photo',lighting:'Golden hour',composition:'Portrait',aspect:'3:2',avoid:'blur, distorted hands'}},
+      {name:'Storybook art',v:{subject:'A girl reading a book under a giant mushroom while fireflies glow around her',setting:'An enchanted forest at night',style:'Watercolor',lighting:'Magical glow',composition:'Wide shot',colors:'deep blues, soft greens, warm yellow light',aspect:'4:5'}},
+      {name:'Thumbnail',v:{subject:'A surprised young man pointing at a giant glowing laptop screen',setting:'Bold solid yellow background',style:'Digital illustration',lighting:'Dramatic',composition:'Close-up',text:'I TRIED AI FOR 30 DAYS',aspect:'16:9',avoid:'clutter, small text'}}
+    ],
+    build(v, p){
+      const o = Out();
+      const style = IMG_STYLE[v.style] || '', light = IMG_LIGHT[v.lighting] || '', comp = IMG_COMP[v.composition] || '';
+      const subj = clean(v.subject);
+      if (p === 'Midjourney' || p === 'Stable Diffusion') {
+        const sd = p === 'Stable Diffusion';
+        const items = [[subj, 'task']];
+        if (has(v.setting)) items.push([lowerArticle(clean(v.setting)), 'context']);
+        if (style) items.push([style, 'style']);
+        if (light) items.push([light, 'style']);
+        if (comp) items.push([comp, 'format']);
+        if (has(v.colors)) items.push([clean(v.colors) + ' color palette', 'style']);
+        if (has(v.text)) items.push([(sd ? 'text "' : 'with the text "') + v.text.trim() + '"', 'example']);
+        if (sd) {
+          items.push(['highly detailed, sharp focus', null]);
+          o.t('Prompt:\n'); items.forEach(([t, s], i) => { if (i) o.t(', '); o.t(t, s); });
+          o.gap().t('Negative prompt:\n');
+          if (has(v.avoid)) o.t(clean(v.avoid), 'rules').t(', ');
+          o.t('blurry, low quality, distorted, watermark');
+          if (v.aspect) o.gap().t('Size: ' + SD_SIZE[v.aspect] + ' (' + v.aspect + ')', 'format');
+        } else {
+          items.forEach(([t, s], i) => { if (i) o.t(', '); o.t(t, s); });
+          if (v.aspect) o.t(' ').t('--ar ' + v.aspect, 'format');
+          if (has(v.avoid)) o.t(' ').t('--no ' + clean(v.avoid), 'rules');
+        }
+        return o.parts;
+      }
+      o.t('Create ' + art(style || 'image') + ' ');
+      if (style) o.t(style, 'style'); else o.t('image');
+      o.t(' of ').t(lowerArticle(subj), 'task').t('.');
+      const rows = [];
+      if (has(v.setting)) rows.push(['Setting: ' + sent(v.setting), 'context']);
+      if (light) rows.push(['Lighting: ' + light + '.', 'style']);
+      if (comp) rows.push(['Composition: ' + comp + '.', 'format']);
+      if (has(v.colors)) rows.push(['Color palette: ' + sent(v.colors), 'style']);
+      if (has(v.text)) rows.push(['Text: include the words "' + v.text.trim() + '", spelled exactly, in clean, legible lettering.', 'example']);
+      if (v.aspect) rows.push(['Aspect ratio: ' + v.aspect + ' (' + ASPECT_WORD[v.aspect] + ').', 'format']);
+      if (has(v.avoid)) rows.push(['Avoid: ' + sent(v.avoid), 'rules']);
+      if (rows.length) { o.gap(); o.list(rows, false); }
+      return o.parts;
+    }
+  },
+
+  video: {
+    label:'Video', sub:'Sora, Veo, Runway',
+    platforms:['Sora','Google Veo','Runway','Kling','Any video AI'],
+    seg:{task:'Subject',context:'Action',style:'Look',format:'Camera & specs',example:'Sound',rules:'Avoid'},
+    fields:[
+      {id:'subject',label:'Who or what is in the scene?',type:'area',seg:'task',req:true,wide:true,ph:'e.g. A golden retriever on a snowy mountain trail'},
+      {id:'action',label:'What happens?',type:'area',seg:'context',wide:true,ph:'e.g. The dog runs toward the camera, kicking up snow'},
+      {id:'camera',label:'Camera',type:'chips',seg:'format',opts:Object.keys(CAM)},
+      {id:'style',label:'Style',type:'chips',seg:'style',opts:Object.keys(VID_STYLE)},
+      {id:'lighting',label:'Light and mood',type:'chips',seg:'style',opts:Object.keys(VID_LIGHT)},
+      {id:'duration',label:'Length',type:'chips',seg:'format',opts:['5 s','8 s','10 s','15 s','20 s']},
+      {id:'aspect',label:'Shape',type:'chips',seg:'format',opts:['16:9','9:16','1:1']},
+      {id:'audio',label:'Sound',type:'text',seg:'example',ph:'Music, sound effects, or dialogue'},
+      {id:'avoid',label:'Leave out',type:'text',seg:'rules',ph:'e.g. text on screen, fast cuts'}
+    ],
+    score:[
+      {seg:'task',w:25,need:['subject'],tip:'Describe who or what is in the scene'},
+      {seg:'context',w:20,need:['action'],tip:'Say what happens in the shot'},
+      {seg:'format',w:15,need:['camera'],tip:'Pick a camera movement'},
+      {seg:'style',w:15,need:['style','lighting'],tip:'Pick a style or light'},
+      {seg:'format',w:10,need:['duration','aspect'],tip:'Set the length or shape'},
+      {seg:'rules',w:10,need:['avoid'],tip:'Say what to leave out'},
+      {seg:'example',w:5,need:['audio'],tip:'Describe the sound'}
+    ],
+    presets:[
+      {name:'Product ad',v:{subject:'A pair of white running shoes on a glossy black platform',action:'The shoes slowly rotate while drops of water bounce off them in slow motion',camera:'Orbit',style:'Commercial / ad',lighting:'Studio light',audio:'A deep bass hit at the start, then a calm electronic beat',duration:'8 s',aspect:'16:9',avoid:'text, people'}},
+      {name:'Nature scene',v:{subject:'A misty tea plantation on rolling green hills at sunrise',action:'Tea pickers walk slowly between the rows as the mist lifts',camera:'Drone / aerial',style:'Cinematic',lighting:'Golden hour',audio:'Birdsong and a gentle wind',duration:'10 s',aspect:'16:9'}},
+      {name:'Social reel',v:{subject:'A barista making latte art in a busy café',action:'Milk is poured to form a heart, then the cup slides toward the camera',camera:'Dolly in',style:'Documentary',lighting:'Soft daylight',audio:'Café ambience and the hiss of the milk steamer',duration:'5 s',aspect:'9:16'}},
+      {name:'Animated explainer',v:{subject:'A friendly little robot in a bright, simple world',action:'The robot waves, then plants a seed that grows into a tree of glowing light bulbs',camera:'Static shot',style:'Animated 3D',lighting:'Soft daylight',audio:'Playful ukulele music',duration:'8 s',aspect:'16:9'}}
+    ],
+    build(v, p){
+      const o = Out();
+      const cam = CAM[v.camera] || '', style = VID_STYLE[v.style] || '', light = VID_LIGHT[v.lighting] || '';
+      const look = [style && style + ' style', light].filter(Boolean).join(', ');
+      const specs = [v.duration && DUR[v.duration], v.aspect && v.aspect + ' (' + ASPECT_WORD[v.aspect] + ')'].filter(Boolean);
+      const runway = p === 'Runway';
+      if (runway && cam) o.t(cap(cam), 'format').t(': ');
+      o.t(sent(v.subject), 'task');
+      if (has(v.action)) o.t(' ').t(sent(v.action), 'context');
+      if (runway && look) o.t(' ').t(sent(cap(look)), 'style');
+      const rows = [];
+      if (!runway && cam) rows.push(['Camera: ' + cam + '.', 'format']);
+      if (!runway && look) rows.push(['Style: ' + look + '.', 'style']);
+      if (has(v.audio)) rows.push(['Sound: ' + sent(v.audio), 'example']);
+      if (specs.length) rows.push(['Length and shape: ' + specs.join(', ') + '.', 'format']);
+      if (has(v.avoid)) rows.push(['Avoid: ' + sent(v.avoid), 'rules']);
+      if (rows.length) { o.gap(); o.list(rows, false); }
+      return o.parts;
+    }
+  },
+
+  audio: {
+    label:'Music & voice', sub:'Suno, Udio, ElevenLabs',
+    platforms:['Suno','Udio','ElevenLabs','Any audio AI'],
+    seg:{task:'Brief',role:'Voice',style:'Sound',format:'Length & structure',rules:'Avoid'},
+    fields:[
+      {id:'kind',label:'What are you making?',type:'chips',seg:'task',opts:['Song','Instrumental','Jingle','Voiceover','Sound effect','Podcast intro']},
+      {id:'topic',label:'What is it about?',type:'area',seg:'task',req:true,wide:true,ph:'The theme, story or product. For a voiceover, paste the exact script.'},
+      {id:'genre',label:'Genre',type:'multi',seg:'style',opts:['Pop','Rock','Hip-hop','Lo-fi','EDM','Acoustic','R&B','Jazz','Cinematic','Classical','Folk']},
+      {id:'mood',label:'Mood',type:'chips',seg:'style',opts:['Uplifting','Calm','Energetic','Sad','Romantic','Epic','Playful','Dark']},
+      {id:'vocals',label:'Voice',type:'chips',seg:'role',opts:Object.keys(VOCAL_TAG)},
+      {id:'tempo',label:'Tempo or pace',type:'chips',seg:'style',opts:['Slow','Medium','Fast']},
+      {id:'instruments',label:'Instruments',type:'text',seg:'style',ph:'e.g. piano, strings, soft drums'},
+      {id:'language',label:'Language',type:'text',seg:'format',ph:'e.g. English, Spanish, Japanese'},
+      {id:'duration',label:'Length',type:'chips',seg:'format',opts:['15 s','30 s','1 min','2–3 min']},
+      {id:'avoid',label:'Leave out',type:'text',seg:'rules',wide:true,ph:'e.g. heavy drums, explicit lyrics'}
+    ],
+    score:[
+      {seg:'task',w:30,need:['topic'],tip:'Say what it is about'},
+      {seg:'style',w:20,need:['genre'],tip:'Pick a genre'},
+      {seg:'style',w:15,need:['mood'],tip:'Pick a mood'},
+      {seg:'task',w:10,need:['kind'],tip:'Say what you are making'},
+      {seg:'role',w:10,need:['vocals'],tip:'Choose a voice'},
+      {seg:'style',w:10,need:['tempo','instruments'],tip:'Set the tempo or instruments'},
+      {seg:'format',w:5,need:['duration','language'],tip:'Set the length or language'}
+    ],
+    presets:[
+      {name:'Song',v:{kind:'Song',topic:'A happy song about friends on a road trip along the coast',genre:['Pop','Acoustic'],mood:'Uplifting',vocals:'Female voice',tempo:'Medium',instruments:'acoustic guitar, hand claps, light drums',language:'English',duration:'2–3 min'}},
+      {name:'Jingle',v:{kind:'Jingle',topic:'A catchy jingle for FreshBite, a healthy food delivery app. Say the name twice.',genre:['Pop'],mood:'Playful',vocals:'Duet',tempo:'Fast',duration:'15 s'}},
+      {name:'Voiceover',v:{kind:'Voiceover',topic:"Welcome to our product tour. In the next two minutes, you'll see how easy it is to track your team's work in one place.",mood:'Calm',vocals:'Female voice',tempo:'Medium',language:'English',duration:'30 s'}},
+      {name:'Study beat',v:{kind:'Instrumental',topic:'Background music for studying late at night',genre:['Lo-fi'],mood:'Calm',vocals:'No vocals',tempo:'Slow',instruments:'soft piano, vinyl crackle, mellow drums',duration:'2–3 min'}}
+    ],
+    build(v, p){
+      const o = Out();
+      const kind = v.kind || 'Song';
+      const music = !['Voiceover','Sound effect'].includes(kind);
+      if ((p === 'Suno' || p === 'Udio') && music) {
+        const tags = [];
+        (v.genre || []).forEach(g => tags.push([g.toLowerCase(), 'style']));
+        if (v.mood) tags.push([v.mood.toLowerCase(), 'style']);
+        if (v.vocals) tags.push([VOCAL_TAG[v.vocals], 'role']);
+        if (v.tempo) tags.push([TEMPO_TAG[v.tempo], 'style']);
+        if (has(v.instruments)) tags.push([clean(v.instruments), 'style']);
+        o.t(p === 'Suno' ? 'Style of music:\n' : 'Tags:\n');
+        if (tags.length) tags.forEach(([t, s], i) => { if (i) o.t(', '); o.t(t, s); }); else o.t('[add a genre or mood]');
+        o.gap().t(p === 'Suno' ? 'Song description:\n' : 'Description:\n');
+        o.t((kind !== 'Song' ? kind + ': ' : '') + sent(v.topic), 'task');
+        const extra = [];
+        if (has(v.language) && kind !== 'Instrumental' && v.vocals !== 'No vocals') extra.push('Sung in ' + clean(v.language) + '.');
+        if (v.duration) extra.push('About ' + DUR[v.duration] + ' long.');
+        if (extra.length) o.t(' ').t(extra.join(' '), 'format');
+        if (STRUCT[kind]) o.gap().t('Structure:\n').t(STRUCT[kind], 'format');
+        if (has(v.avoid)) o.gap().t(p === 'Suno' ? 'Exclude styles: ' : 'Avoid: ').t(clean(v.avoid), 'rules');
+        return o.parts;
+      }
+      if (kind === 'Voiceover') {
+        const voice = [v.vocals && VO_VOICE[v.vocals], v.mood && v.mood.toLowerCase() + ' delivery', v.tempo && VO_PACE[v.tempo] + ' pace'].filter(Boolean);
+        if (voice.length) o.t('Voice: ' + cap(voice.join(', ')) + '.', 'role');
+        const rows = [];
+        if (has(v.language)) rows.push(['Language: ' + sent(v.language), 'format']);
+        if (v.duration) rows.push(['Target length: about ' + DUR[v.duration] + '.', 'format']);
+        if (has(v.avoid)) rows.push(['Avoid: ' + sent(v.avoid), 'rules']);
+        if (rows.length) { o.nl(); o.list(rows, false); }
+        o.gap().t('Script:\n').t('"' + v.topic.trim() + '"', 'task');
+        return o.parts;
+      }
+      o.t('Create ' + art(kind) + ' ' + kind.toLowerCase() + '.', 'task').nl().t('About: ' + sent(v.topic), 'task');
+      const rows = [];
+      if (has(v.genre)) rows.push(['Genre: ' + v.genre.map(g => g.toLowerCase()).join(', ') + '.', 'style']);
+      if (v.mood) rows.push(['Mood: ' + v.mood.toLowerCase() + '.', 'style']);
+      if (v.vocals && music) rows.push(['Vocals: ' + VOCAL_TAG[v.vocals] + '.', 'role']);
+      if (v.tempo) rows.push(['Tempo: ' + TEMPO_TAG[v.tempo] + '.', 'style']);
+      if (has(v.instruments)) rows.push(['Instruments: ' + sent(v.instruments), 'style']);
+      if (has(v.language)) rows.push(['Language: ' + sent(v.language), 'format']);
+      if (v.duration) rows.push(['Length: about ' + DUR[v.duration] + '.', 'format']);
+      if (has(v.avoid)) rows.push(['Avoid: ' + sent(v.avoid), 'rules']);
+      if (rows.length) { o.gap(); o.list(rows, false); }
+      return o.parts;
+    }
+  },
+
+  code: {
+    label:'Coding agent', sub:'Claude Code, Cursor, Copilot',
+    platforms:['Claude Code','Cursor','GitHub Copilot','ChatGPT / Codex','Any coding AI'],
+    seg:{task:'Task',context:'Codebase',example:'Done when',rules:'Rules',format:'How to work'},
+    fields:[
+      {id:'taskType',label:'Type of task',type:'chips',seg:'format',opts:Object.keys(TASK_GUIDE)},
+      {id:'goal',label:'What should the AI do?',type:'area',seg:'task',req:true,wide:true,ph:'e.g. Add a dark mode toggle to the settings page'},
+      {id:'stack',label:'Language or framework',type:'text',seg:'context',ph:'e.g. C# .NET 8, React, Playwright'},
+      {id:'files',label:'Relevant files or folders',type:'text',seg:'context',ph:'e.g. src/auth/login.ts, tests/'},
+      {id:'current',label:'What happens now?',type:'area',seg:'context',wide:true,ph:'For bugs: the wrong behavior, the error message, or steps to reproduce'},
+      {id:'expected',label:'What should happen instead?',type:'area',seg:'context',wide:true,ph:'The behavior you want'},
+      {id:'acceptance',label:'Done when…',type:'area',seg:'example',wide:true,ph:'One check per line, e.g. All tests pass'},
+      {id:'rules',label:'Rules',type:'area',seg:'rules',wide:true,ph:"e.g. Don't add new packages. Follow the existing patterns."},
+      {id:'process',label:'How it should work',type:'toggles',seg:'format',opts:Object.keys(PROCESS)}
+    ],
+    score:[
+      {seg:'task',w:30,need:['goal'],tip:'Say what the AI should do'},
+      {seg:'context',w:20,need:['stack','files'],tip:'Name the language or the files involved'},
+      {seg:'context',w:15,need:['current','expected'],tip:'Describe current and expected behavior'},
+      {seg:'example',w:15,need:['acceptance'],tip:'Add "Done when" checks'},
+      {seg:'rules',w:10,need:['rules'],tip:'Add a rule (for example, no new packages)'},
+      {seg:'format',w:10,need:['taskType','process'],tip:'Pick a task type or how it should work'}
+    ],
+    presets:[
+      {name:'New feature',v:{taskType:'New feature',goal:'Add an "Export to CSV" button to the employee list page that downloads the rows currently shown.',stack:'React 18 + TypeScript front end, ASP.NET Core 8 API',files:'src/pages/EmployeeList.tsx, Api/Controllers/EmployeesController.cs',expected:'Clicking the button downloads a CSV with the same columns and filters as the screen.',acceptance:'Works for up to 10,000 rows\nUnit tests cover the CSV builder\nExisting tests still pass',rules:'Follow the existing component patterns.\nDo not add new npm packages.',process:['Plan first','Run the tests']}},
+      {name:'Fix a bug',v:{taskType:'Fix a bug',goal:'Fix the login so users stay signed in after refreshing the page.',stack:'Angular 17, .NET 8 Web API, JWT auth',files:'src/app/auth/auth.service.ts',current:'After a page refresh, the user is sent back to the login page even though the token is still valid.',expected:'Users stay signed in until the token expires.',acceptance:'A test reproduces the bug and now passes\nAll auth tests pass',rules:'Do not change the token format.',process:['Plan first','Run the tests','Keep changes small']}},
+      {name:'Write tests',v:{taskType:'Write tests',goal:'Write automated UI tests for the leave request form.',stack:'C#, Playwright, NUnit',files:'Tests/LeaveRequest/',acceptance:'Cover a successful submit, required-field errors, and invalid date ranges\nTests run independently and clean up their own data',rules:'Use the existing Page Object classes.\nNo fixed waits such as Thread.Sleep.',process:['Run the tests','Summarize changes']}},
+      {name:'Code review',v:{taskType:'Code review',goal:'Review the changes on my current branch for bugs, security issues, and readability.',stack:'Python 3.12, FastAPI',rules:'Rank findings by severity.\nSkip style nitpicks that a linter would catch.',process:['Summarize changes']}}
+    ],
+    build(v, p){
+      const o = Out();
+      const ref = p === 'GitHub Copilot' ? f => '#file:' + f : (p === 'Claude Code' || p === 'Cursor') ? f => '@' + f : f => '`' + f + '`';
+      o.t('## Task\n').t(sent(v.goal), 'task');
+      const ctx = [];
+      if (has(v.stack)) ctx.push(['Tech stack: ' + clean(v.stack), 'context']);
+      if (has(v.files)) ctx.push(['Relevant files: ' + String(v.files).split(/[,\n]+/).map(s => s.trim()).filter(Boolean).map(ref).join(', '), 'context']);
+      if (has(v.current)) ctx.push(['Current behavior: ' + sent(v.current), 'context']);
+      if (has(v.expected)) ctx.push(['Expected behavior: ' + sent(v.expected), 'context']);
+      if (ctx.length) o.gap().t('## Context\n').list(ctx);
+      const done = lines(v.acceptance).map(t => [sent(t), 'example']);
+      if (done.length) o.gap().t('## Done when\n').list(done);
+      const rules = lines(v.rules).map(t => [sent(t), 'rules']);
+      if (rules.length) o.gap().t('## Rules\n').list(rules);
+      const wf = [...(TASK_GUIDE[v.taskType] || []), ...(v.process || []).map(x => PROCESS[x]).filter(Boolean)].map(t => [t, 'format']);
+      if (wf.length) o.gap().t('## How to work\n').list(wf);
+      return o.parts;
+    }
+  }
+};
+
+const TIP = {
+  'ChatGPT':'Paste it into a new chat. If the answer misses, reply with what to change instead of starting over.',
+  'Claude':'Claude follows XML-style tags well, so each part of this prompt is wrapped in its own tag.',
+  'Gemini':'Clear headings help Gemini. If your task refers to a file, attach it in the same message.',
+  'Copilot':'Copilot does best with one focused task per prompt. Split big requests into steps.',
+  'Any AI':'This structure (role, task, context, format, rules) works in almost any chat assistant.',
+  'Midjourney':'Parameters such as --ar and --no go at the end. Paste the whole line into the prompt box.',
+  'ChatGPT images':'Ask for changes in follow-up messages, for example "same image, but at night".',
+  'Stable Diffusion':'Paste the negative prompt into its own box and set the width and height to the size shown.',
+  'Adobe Firefly':'Set the content type and aspect ratio in the side panel, then paste the text prompt.',
+  'Ideogram':'Ideogram is strong with text in images. Keep the quoted words short and spelled exactly.',
+  'Any image AI':'Most image tools weigh the first words most, so the subject comes first.',
+  'Sora':'Describe one shot at a time. Short, concrete actions give the cleanest motion.',
+  'Google Veo':'Veo can generate sound, so describe music, effects or dialogue on the Sound line.',
+  'Runway':'Runway works best with the camera movement first, then the scene. Set length and shape in the app.',
+  'Kling':'Keep the action simple and physical. One main movement per clip works best.',
+  'Any video AI':'One shot per prompt. Make several short clips and join them rather than one long scene.',
+  'Suno':'Paste "Style of music" into the Styles box and the rest into Lyrics, or use the description alone in simple mode.',
+  'Udio':'Paste the tags into the prompt box. Section tags like [Verse] help shape the song.',
+  'ElevenLabs':'Pick a voice that matches the description, then paste only the script into the text box.',
+  'Any audio AI':'Name the genre and mood first. They shape the result more than any other detail.',
+  'Claude Code':'Run Claude Code from your project folder. @ mentions point it at specific files.',
+  'Cursor':'@ mentions add files to the context. Use Agent mode for changes across several files.',
+  'GitHub Copilot':'#file: references add files to Copilot Chat. Use agent mode for multi-file changes.',
+  'ChatGPT / Codex':'If the tool cannot see your repository, paste the relevant code under the prompt.',
+  'Any coding AI':'"Done when" checks are the quickest way to get working code on the first try.'
+};
+
+const CONV = {
+  'ChatGPT':'clear Markdown headings or labeled sections, an explicit output format, concise instructions',
+  'Claude':'each part wrapped in descriptive XML tags such as <task>, <context>, <output_format>; state the goal and why it matters; be explicit about the desired output',
+  'Gemini':'clear headings, an explicit task, context and output format, concise wording',
+  'Copilot':'one focused task, short labeled sections, an explicit output format',
+  'Any AI':'a clear structure that works in any chat assistant: role, task, context, output format, rules',
+  'Midjourney':'one line of comma-separated descriptive phrases (subject first, then scene, style, lighting, composition), with parameters such as --ar W:H and --no items at the very end',
+  'ChatGPT images':'natural full sentences describing subject, setting, style, lighting and composition; quote any text exactly; state the aspect ratio in words',
+  'Stable Diffusion':'a "Prompt:" block of comma-separated keywords with the most important first, a separate "Negative prompt:" block, and the pixel size',
+  'Adobe Firefly':'a concise natural-language description of subject, setting, style and lighting',
+  'Ideogram':'natural sentences; put any text to render in quotes, keep it short, and describe the lettering style',
+  'Any image AI':'a clear natural-language description: subject, setting, style, lighting, composition, colors, aspect ratio, what to avoid',
+  'Sora':'a vivid description of a single shot: subject, action, camera movement, style, lighting, sound, length and aspect ratio',
+  'Google Veo':'a single shot with subject, action, camera, style, lighting, and audio (dialogue, sound effects, music)',
+  'Runway':'camera movement first, then the scene, then details, in the form "[camera]: [scene]. [details]"',
+  'Kling':'subject, action, camera movement and style in short, concrete sentences',
+  'Any video AI':'a single shot: subject, action, camera, style, lighting, sound, length, aspect ratio',
+  'Suno':'a short "Style of music" line (comma-separated genres, mood, vocals, instruments, tempo) and a song description or lyrics using section tags like [Verse] and [Chorus]',
+  'Udio':'a short comma-separated tag line for genre, mood and vocals, plus a description or lyrics with section tags',
+  'ElevenLabs':'a voice description (gender, age, accent, pace, emotion) followed by the exact script, using punctuation for pauses',
+  'Any audio AI':'a clear description: type, genre, mood, vocals, tempo, instruments, length, language',
+  'Claude Code':'Markdown sections (Task, Context with @file references, Done when, Rules, How to work); ask for a plan before edits on larger changes',
+  'Cursor':'Markdown sections with @file references, explicit acceptance criteria and constraints',
+  'GitHub Copilot':'Markdown sections with #file: references, one focused task, acceptance criteria',
+  'ChatGPT / Codex':'Markdown sections for task, context, constraints and acceptance criteria; ask for complete code blocks',
+  'Any coding AI':'Markdown sections for task, context, constraints, acceptance criteria and workflow'
+};
+
+/* ---------- state ---------- */
+const LKEY = 'pw.state.v1', SKEY = 'pw.saved.v1';
+const state = { cat:'chat', platform:{}, values:{}, polished:null, tab:'built', banner:'', simple:false };
+let builtText = '', saveT = 0, polBusy = false;
+let sample = null, aiState = 'pending';
+
+const vals = () => state.values[state.cat] || (state.values[state.cat] = {});
+const cat = () => CATS[state.cat];
+const plat = () => { const c = cat(); const p = state.platform[state.cat]; return c.platforms.includes(p) ? p : c.platforms[0]; };
+const fieldsOf = (id, v) => CATS[id].fieldsFor ? CATS[id].fieldsFor(v || {}) : CATS[id].fields;
+const scoreOf = (id, v) => CATS[id].scoreFor ? CATS[id].scoreFor(v || {}) : CATS[id].score;
+const presetsOf = (id, v) => CATS[id].presetsFor ? CATS[id].presetsFor(v || {}) : CATS[id].presets;
+const norm = () => { const v = vals(); if (cat().normalize) cat().normalize(v); return v; };
+
+function lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function saveState(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => lsSet(LKEY, { cat:state.cat, platform:state.platform, values:state.values, polished:state.polished, desc:$('#desc').value, simple:state.simple }), 300);
+}
+function loadState(){
+  const s = lsGet(LKEY);
+  if (!s || !CATS[s.cat]) return false;
+  state.cat = s.cat;
+  state.platform = s.platform && typeof s.platform === 'object' ? s.platform : {};
+  state.values = s.values && typeof s.values === 'object' ? s.values : {};
+  state.polished = s.polished && typeof s.polished.text === 'string' ? s.polished : null;
+  if (typeof s.desc === 'string') $('#desc').value = s.desc;
+  state.simple = !!s.simple;
+  return true;
+}
+
+/* ---------- rendering ---------- */
+function renderCats(){
+  $('#cats').innerHTML = Object.entries(CATS).map(([id, c]) =>
+    '<button type="button" class="cat" role="tab" data-cat="' + id + '" aria-selected="' + (id === state.cat) + '">' +
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[id] + '</svg><span>' + esc(c.label) + '<small>' + esc(c.sub) + '</small></span></button>').join('');
+}
+function renderPlats(){
+  const p = plat();
+  $('#plats').innerHTML = cat().platforms.map(x => '<button type="button" class="chip" data-plat="' + esc(x) + '" aria-pressed="' + (x === p) + '">' + esc(x) + '</button>').join('');
+}
+function renderPresets(){
+  $('#presets').innerHTML = presetsOf(state.cat, vals()).map((pr, i) => '<button type="button" class="chip" data-preset="' + i + '">' + esc(pr.name) + '</button>').join('') +
+    '<button type="button" class="chip dashed" data-clear="1">Clear form</button>';
+  const b = $('#banner'); b.hidden = !state.banner; b.textContent = state.banner;
+}
+function fieldHTML(f, v, wideIt){
+  const id = 'f-' + state.cat + '-' + f.id;
+  const val = v[f.id];
+  const dot = '<span class="dot" style="--c:var(--seg-' + f.seg + ')"></span>';
+  const req = f.req ? '<span class="req">Main field</span>' : '';
+  const wide = wideIt ? ' wide' : '';
+  let ctl;
+  if (f.type === 'text') ctl = '<input class="inp" type="text" id="' + id + '" data-f="' + f.id + '" placeholder="' + esc(f.ph || '') + '" value="' + esc(val || '') + '">';
+  else if (f.type === 'area') ctl = '<textarea class="inp" id="' + id + '" data-f="' + f.id + '" rows="' + (f.req ? 3 : 2) + '" placeholder="' + esc(f.ph || '') + '">' + esc(val || '') + '</textarea>';
+  else {
+    const multi = f.type !== 'chips';
+    const sel = multi ? (Array.isArray(val) ? val : []) : val;
+    ctl = '<div class="chips" role="group" aria-labelledby="' + id + '-l">' + f.opts.map(o =>
+      '<button type="button" class="chip' + (multi ? ' multi' : '') + '" data-f="' + f.id + '" data-o="' + esc(o) + '" aria-pressed="' + (multi ? sel.includes(o) : sel === o) + '">' + esc(o) + '</button>').join('') + '</div>';
+  }
+  const labelTag = (f.type === 'text' || f.type === 'area')
+    ? '<label class="flabel" for="' + id + '">' + dot + esc(f.label) + req + '</label>'
+    : '<span class="flabel" id="' + id + '-l">' + dot + esc(f.label) + '</span>';
+  return '<div class="field' + wide + '">' + labelTag + ctl + (f.hint ? '<p class="hint">' + esc(f.hint) + '</p>' : '') + '</div>';
+}
+function renderForm(){
+  const v = norm(), all = fieldsOf(state.cat, v);
+  let fs = all;
+  // Essentials view: the role/task pickers, the main field, and the first two choice groups.
+  if (state.simple) { let extra = 0; fs = all.filter(f => f.sticky || f.req || ((f.type === 'chips' || f.type === 'multi') && extra++ < 2)); }
+  const hidden = all.length - fs.length;
+  // Two short text fields in a row share a line; everything else spans the full width.
+  const half = new Set();
+  for (let i = 0; i < fs.length - 1; i++) {
+    if (fs[i].type === 'text' && !fs[i].wide && fs[i + 1].type === 'text' && !fs[i + 1].wide) { half.add(i); half.add(i + 1); i++; }
+  }
+  $('#form').innerHTML = fs.map((f, i) => fieldHTML(f, v, !half.has(i))).join('') +
+    (hidden ? '<p class="form-note">Showing the essentials. ' + hidden + ' more option' + (hidden === 1 ? ' is' : 's are') + ' hidden, and anything already in them still counts. <button type="button" class="linkbtn" data-showall="1">Show all options</button></p>' : '');
+}
+function renderDetail(){
+  document.querySelectorAll('#detailMode .mode').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.detail === 'simple') === !!state.simple)));
+}
+
+function strength(){
+  const v = vals();
+  let score = 0, next = null;
+  const items = scoreOf(state.cat, v).map(it => {
+    const on = it.need.some(id => has(v[id]));
+    if (on) score += it.w; else if (!next || it.w > next.w) next = it;
+    return Object.assign({}, it, { on });
+  });
+  return { score: Math.min(100, Math.round(score)), items, next };
+}
+function renderStrength(){
+  const s = strength();
+  const label = s.score >= 75 ? 'Strong' : s.score >= 45 ? 'Good' : s.score > 0 ? 'Basic' : 'Not started';
+  $('#strength').innerHTML =
+    '<div class="st-row"><span>Prompt strength: <b>' + label + '</b></span><span class="st-score">' + s.score + ' / 100</span></div>' +
+    '<div class="st-bar" aria-hidden="true">' + s.items.map(it => '<span class="' + (it.on ? 'on' : '') + '" style="flex:' + it.w + ';--c:var(--seg-' + it.seg + ')"></span>').join('') + '</div>' +
+    '<p class="st-next">' + (s.next ? 'Next step: ' + esc(s.next.tip) + ' <span class="st-score">(+' + s.next.w + ')</span>' : 'Every part is filled in. Nice work.') + '</p>';
+}
+
+function renderBuilt(){
+  const c = cat(), v = norm(), p = plat();
+  const req = fieldsOf(state.cat, v).find(f => f.req);
+  const legend = $('#legend');
+  if (!has(v[req.id])) {
+    builtText = '';
+    $('#built').innerHTML = '<div class="empty"><b>Start with the main field.</b><br>Fill in "' + esc(req.label) + '" and your prompt builds here as you type. Or pick an example above.</div>';
+    legend.innerHTML = '';
+  } else {
+    let parts = c.build(v, p);
+    while (parts.length && !parts[parts.length - 1].t.trim()) parts.pop();
+    builtText = parts.map(x => x.t).join('').trim();
+    $('#built').innerHTML = parts.map(x => x.s ? '<span class="seg seg-' + x.s + '" data-seg="' + x.s + '">' + esc(x.t) + '</span>' : esc(x.t)).join('');
+    const present = SEGS.filter(s => parts.some(x => x.s === s));
+    legend.innerHTML = present.map(s => '<button type="button" class="lg" data-seg="' + s + '" style="--c:var(--seg-' + s + ')"><i></i>' + esc(c.seg[s] || s) + '</button>').join('');
+  }
+  $('#polishBtn').disabled = polBusy || !builtText;
+  $('#copyBtn').disabled = false;
+}
+
+function renderAIPane(){
+  if (polBusy) return;
+  const pol = state.polished, msg = $('#aiMsg'), pre = $('#polished');
+  if (pol && pol.text) {
+    pre.textContent = pol.text;
+    const stale = pol.draft !== builtText || pol.cat !== state.cat || pol.p !== plat();
+    setMsg(msg, stale ? 'Your form changed after this was polished. Polish again to update it.' : 'Polished for ' + pol.p + '. Review it before you use it.', stale ? '' : 'ok');
+  } else {
+    pre.innerHTML = '<div class="empty">' + (aiState === 'off'
+      ? '<b>AI polishing is not available here.</b><br>It works when you open this page in Claude. The Built tab works everywhere.'
+      : '<b>No polished version yet.</b><br>Press <b>Polish with AI</b> and Claude rewrites your built prompt into a refined version for ' + esc(plat()) + '.') + '</div>';
+    setMsg(msg, '', '');
+  }
+}
+
+function renderSaved(){
+  const list = lsGet(SKEY) || [];
+  $('#tabSaved').textContent = list.length ? 'Saved (' + list.length + ')' : 'Saved';
+  const ul = $('#savedList');
+  if (!list.length) { ul.innerHTML = '<li class="empty"><b>Nothing saved yet.</b><br>Press Save to keep a prompt in this browser.</li>'; return; }
+  ul.innerHTML = list.map(it => {
+    const c = CATS[it.cat];
+    const d = new Date(it.ts);
+    const when = isNaN(d) ? '' : d.toLocaleDateString(undefined, { day:'numeric', month:'short' });
+    return '<li><div class="t">' + esc(it.title) + '</div><div class="m">' + esc((c ? c.label : it.cat) + ' · ' + it.platform + (when ? ' · ' + when : '')) + '</div>' +
+      '<div class="row"><button type="button" class="btn ghost small" data-open="' + esc(it.id) + '">Open</button><button type="button" class="btn ghost small" data-del="' + esc(it.id) + '">Remove</button></div></li>';
+  }).join('');
+}
+
+function renderCounts(){
+  const text = state.tab === 'ai' ? $('#polished').innerText.trim() : builtText;
+  const hasText = state.tab === 'ai' ? !!(state.polished || polBusy) && !!text && !$('#polished .empty') : !!text;
+  const w = hasText ? text.split(/\s+/).filter(Boolean).length : 0;
+  $('#counts').textContent = hasText ? w + ' words · ' + text.length + ' characters' : '';
+}
+
+function renderTabs(){
+  ['built','ai','saved'].forEach(t => {
+    const tab = document.querySelector('.tab[data-tab="' + t + '"]');
+    tab.setAttribute('aria-selected', String(state.tab === t));
+  });
+  $('#paneBuilt').hidden = state.tab !== 'built';
+  $('#paneAI').hidden = state.tab !== 'ai';
+  $('#paneSaved').hidden = state.tab !== 'saved';
+  $('#legend').hidden = state.tab !== 'built';
+  $('#legendHint').hidden = state.tab !== 'built' || !builtText;
+  $('#actions').hidden = state.tab === 'saved';
+  $('#meta').hidden = state.tab === 'saved';
+  $('#copyBtn').textContent = state.tab === 'ai' ? 'Copy polished prompt' : 'Copy prompt';
+}
+
+function renderOutput(){
+  $('#forLabel').textContent = 'for ' + plat();
+  $('#tip').innerHTML = '<b>Tip for ' + esc(plat()) + ':</b> ' + esc(TIP[plat()] || '');
+  renderStrength();
+  renderBuilt();
+  renderAIPane();
+  renderTabs();
+  renderCounts();
+}
+
+function renderAll(){
+  renderCats(); renderPlats(); renderPresets(); renderDetail(); renderForm(); renderOutput(); renderSaved(); renderAI();
+}
+
+function renderAI(){
+  const on = aiState === 'on', off = aiState === 'off', st = $('#fillStatus');
+  $('#modes').hidden = off;
+  $('#modeWords').hidden = off || mode !== 'words';
+  $('#modeMedia').hidden = off || mode !== 'media';
+  $('#aiOff').hidden = !off;
+  document.querySelectorAll('.mode').forEach(b => b.setAttribute('aria-selected', String(b.dataset.mode === mode)));
+  $('#fillBtn').disabled = !on;
+  if (off || (on && st.dataset.kind !== 'keep')) setMsg(st, '', '');
+  $('#polishBtn').hidden = !on;
+  renderMedia();
+  renderAIPane();
+}
+
+function setMsg(el, text, kind){
+  el.textContent = text;
+  el.classList.remove('ok','bad','busy');
+  if (kind) el.classList.add(kind);
+}
+
+let toastT = 0;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- events ---------- */
+function changed(){ renderOutput(); saveState(); }
+
+// Role or task changed: swap in that task's fields. If the form still holds an
+// untouched example (or the main field is empty), load the new task's example too.
+function switchTask(fid){
+  const v = vals();
+  if (fid === 'role') v.task = '';
+  cat().normalize(v);
+  if (v._ex || !has(v.subject)) {
+    const pr = presetsOf(state.cat, v)[0];
+    if (pr) { state.values[state.cat] = Object.assign(clone(pr.v), { _ex: true }); state.banner = 'Example loaded: ' + pr.name + '. Edit any field to make it yours.'; }
+  }
+  renderPresets(); renderForm(); changed();
+}
+
+$('#cats').addEventListener('click', e => {
+  const b = e.target.closest('.cat'); if (!b || b.dataset.cat === state.cat) return;
+  state.cat = b.dataset.cat;
+  if (!state.values[state.cat]) { const pr = presetsOf(state.cat, {})[0]; state.values[state.cat] = Object.assign(clone(pr.v), { _ex: true }); state.banner = 'Example loaded: ' + pr.name + '. Edit any field to make it yours.'; }
+  else state.banner = '';
+  if (state.tab === 'saved') state.tab = 'built';
+  renderCats(); renderPlats(); renderPresets(); renderForm(); renderOutput(); saveState();
+});
+$('#plats').addEventListener('click', e => {
+  const b = e.target.closest('[data-plat]'); if (!b) return;
+  state.platform[state.cat] = b.dataset.plat;
+  renderPlats(); changed();
+});
+$('#presets').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  if (b.dataset.clear) {
+    const cur = vals(), keep = {};
+    fieldsOf(state.cat, cur).forEach(f => { if (f.sticky) keep[f.id] = cur[f.id]; });
+    state.values[state.cat] = keep; state.banner = '';
+  } else {
+    const pr = presetsOf(state.cat, vals())[+b.dataset.preset]; if (!pr) return;
+    state.values[state.cat] = Object.assign(clone(pr.v), { _ex: true });
+    state.banner = 'Example loaded: ' + pr.name + '. Edit any field to make it yours.';
+  }
+  renderPresets(); renderForm(); changed();
+});
+const form = $('#form');
+form.addEventListener('submit', e => e.preventDefault());
+form.addEventListener('input', e => {
+  const el = e.target; if (!el.dataset || !el.dataset.f) return;
+  const v = vals(); v[el.dataset.f] = el.value; v._ex = false; changed();
+});
+form.addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b || !b.dataset.f) return;
+  const v = vals(), o = b.dataset.o;
+  const f = fieldsOf(state.cat, v).find(x => x.id === b.dataset.f); if (!f) return;
+  if (f.sticky && v[f.id] === o) return;
+  if (f.type === 'chips') v[f.id] = v[f.id] === o ? '' : o;
+  else { const set = new Set(Array.isArray(v[f.id]) ? v[f.id] : []); set.has(o) ? set.delete(o) : set.add(o); v[f.id] = f.opts.filter(x => set.has(x)); }
+  if (f.rerender) { switchTask(f.id); return; }
+  v._ex = false;
+  b.parentElement.querySelectorAll('.chip').forEach(x => {
+    const on = f.type === 'chips' ? v[f.id] === x.dataset.o : v[f.id].includes(x.dataset.o);
+    x.setAttribute('aria-pressed', String(on));
+  });
+  changed();
+});
+
+$('#detailMode').addEventListener('click', e => {
+  const b = e.target.closest('[data-detail]'); if (!b) return;
+  state.simple = b.dataset.detail === 'simple'; renderDetail(); renderForm(); saveState();
+});
+form.addEventListener('click', e => {
+  if (!e.target.closest('[data-showall]')) return;
+  state.simple = false; renderDetail(); renderForm(); saveState();
+});
+
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  state.tab = b.dataset.tab;
+  if (state.tab === 'saved') renderSaved();
+  if (state.tab === 'ai') renderAIPane();
+  renderTabs(); renderCounts();
+});
+
+function focusSeg(s){
+  const pre = $('#built');
+  pre.classList.toggle('focusing', !!s);
+  pre.querySelectorAll('.seg').forEach(el => el.classList.toggle('hl', el.dataset.seg === s));
+}
+const legend = $('#legend');
+legend.addEventListener('mouseover', e => { const b = e.target.closest('.lg'); focusSeg(b ? b.dataset.seg : null); });
+legend.addEventListener('mouseleave', () => focusSeg(null));
+legend.addEventListener('focusin', e => { const b = e.target.closest('.lg'); focusSeg(b ? b.dataset.seg : null); });
+legend.addEventListener('focusout', () => focusSeg(null));
+legend.addEventListener('click', e => { const b = e.target.closest('.lg'); if (b) focusSeg(b.dataset.seg); });
+
+function selectEl(el){
+  try { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
+}
+$('#copyBtn').addEventListener('click', () => {
+  const ai = state.tab === 'ai';
+  const el = ai ? $('#polished') : $('#built');
+  const text = ai ? (el.querySelector('.empty') ? '' : el.innerText.trim()) : builtText;
+  if (!text) { toast(ai ? 'There is no polished prompt to copy yet.' : 'Fill in the main field first.'); return; }
+  const done = () => toast('Copied. Paste it into ' + plat() + '.');
+  const fail = () => { selectEl(el); toast('Text selected. Press Ctrl+C (or ⌘C) to copy.'); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
+    else fail();
+  } catch (e) { fail(); }
+});
+
+$('#saveBtn').addEventListener('click', () => {
+  const v = norm();
+  const req = fieldsOf(state.cat, v).find(f => f.req);
+  if (!has(v[req.id])) { toast('Fill in the main field before saving.'); return; }
+  const list = lsGet(SKEY) || [];
+  const title = ((cat().normalize && v.task) ? v.task + ': ' : '') + String(v[req.id]).trim().replace(/\s+/g, ' ');
+  const pol = state.polished && state.polished.cat === state.cat ? state.polished : null;
+  list.unshift({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: title.length > 72 ? title.slice(0, 70) + '…' : title, cat: state.cat, platform: plat(), values: clone(v), polished: pol, ts: Date.now() });
+  if (lsSet(SKEY, list.slice(0, 50))) { renderSaved(); toast('Saved in this browser.'); }
+  else toast('Could not save. This browser is blocking storage for this page.');
+});
+$('#savedList').addEventListener('click', e => {
+  const open = e.target.closest('[data-open]'), del = e.target.closest('[data-del]');
+  const list = lsGet(SKEY) || [];
+  if (open) {
+    const it = list.find(x => x.id === open.dataset.open); if (!it || !CATS[it.cat]) return;
+    state.cat = it.cat; state.values[it.cat] = clone(it.values || {}); state.platform[it.cat] = it.platform;
+    state.polished = it.polished || null; state.banner = 'Opened a saved prompt.'; state.tab = 'built';
+    renderAll(); saveState(); toast('Opened.');
+  } else if (del) {
+    lsSet(SKEY, list.filter(x => x.id !== del.dataset.del)); renderSaved(); toast('Removed.');
+  }
+});
+
+/* ---------- AI (Claude via the sample capability) ---------- */
+const PERMA = ['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'];
+function errText(e){
+  const c = e && e.code;
+  if (c === 'not_granted') return 'AI is off for this page because access was declined. The form still works.';
+  if (PERMA.includes(c)) return 'AI is not available for your account here. The form still works.';
+  if (c === 'rate_limited') return 'Too many AI requests right now. Wait a minute, then try again.';
+  if (c === 'session_expired') return 'Your Claude session ended. Sign in again, then retry.';
+  if (c === 'refused') return 'Claude could not help with that request. Try rewording it.';
+  if (c === 'invalid_json' || c === 'empty_completion') return 'The AI reply could not be used. Try again, or add a little more detail.';
+  if (c === 'prompt_too_large') return 'That is too much text. Shorten it and try again.';
+  if (c === 'image_rejected') return 'Claude could not use that file. Try a smaller JPG or PNG, or a different clip.';
+  if (c === 'images_unavailable') return 'Reading images is not available in this view of the page.';
+  return 'Could not reach Claude. Check your connection and try again.';
+}
+function onAiError(e){ if (e && PERMA.includes(e.code)) { aiState = 'off'; renderAI(); } }
+
+const typeDesc = f => f.type === 'text' ? 'short text' : f.type === 'area' ? 'text' : f.type === 'chips' ? 'one of ' + JSON.stringify(f.opts) : 'list, any of ' + JSON.stringify(f.opts);
+function fieldLine(f){ return '    - ' + f.id + ' (' + typeDesc(f) + '): ' + f.label; }
+function schemaText(){
+  return Object.entries(CATS).map(([id, c]) => {
+    if (c.schema) return c.schema();
+    const f = c.fields.map(fieldLine).join('\n');
+    return '- category "' + id + '" (' + c.label + ')\n  platforms: ' + JSON.stringify(c.platforms) + '\n  fields:\n' + f;
+  }).join('\n');
+}
+function fillPrompt(text){
+  return 'You fill in a prompt-builder form from a person\'s plain-language request.\n\n' +
+    'Form categories and their fields:\n' + schemaText() + '\n\n' +
+    'The person\'s request:\n"""\n' + text.slice(0, 4000) + '\n"""\n\n' +
+    'Instructions:\n' +
+    '- Pick the one category that best fits the request.\n' +
+    '- Pick the platform the person names if it is in that category\'s list. Otherwise pick the last platform in the list.\n' +
+    '- Fill only the fields you can reasonably infer from the request. Leave the others out.\n' +
+    '- Write text fields as short, clear values in the same language as the request. For a text-and-chat request you may suggest a fitting expert role.\n' +
+    '- For "one of" fields use exactly one allowed option. For "list" fields use an array of allowed options. Never use options that are not listed.\n' +
+    '- Do not invent facts the person did not give (names, dates, numbers, prices). Use a short [placeholder] in square brackets instead.\n\n' +
+    'Reply with only JSON in this shape:\n{"category": "<category id>", "platform": "<platform>", "fields": {"<field id>": "<value or array>"}}';
+}
+function applyFill(res, banner){
+  if (!res || typeof res !== 'object') throw { code:'invalid_json' };
+  const id = CATS[res.category] ? res.category : 'chat';
+  const c = CATS[id];
+  const pl = c.platforms.find(x => x.toLowerCase() === String(res.platform || '').toLowerCase()) || c.platforms[c.platforms.length - 1];
+  const src = res.fields && typeof res.fields === 'object' ? res.fields : {};
+  const v = {};
+  if (c.normalize) { v.role = String(src.role || ''); v.task = String(src.task || ''); c.normalize(v); }
+  fieldsOf(id, v).forEach(f => {
+    if (f.sticky) return;
+    const x = src[f.id]; if (x == null) return;
+    if (f.type === 'text' || f.type === 'area') { const s = (Array.isArray(x) ? x.join('\n') : String(x)).trim(); if (s) v[f.id] = s; }
+    else if (f.type === 'chips') { const s = String(Array.isArray(x) ? x[0] : x).toLowerCase(); const m = f.opts.find(o => o.toLowerCase() === s); if (m) v[f.id] = m; }
+    else { const arr = (Array.isArray(x) ? x : [x]).map(a => String(a).toLowerCase()); const m = f.opts.filter(o => arr.includes(o.toLowerCase())); if (m.length) v[f.id] = m; }
+  });
+  const req = fieldsOf(id, v).find(f => f.req);
+  if (!has(v[req.id])) throw { code:'invalid_json' };
+  state.cat = id; state.values[id] = v; state.platform[id] = pl;
+  state.banner = banner || 'Filled in by AI from your description. Check each field and adjust anything.';
+  state.tab = 'built';
+  renderAll(); saveState();
+}
+
+let fillCtl = null;
+$('#fillBtn').addEventListener('click', async () => {
+  if (!sample) return;
+  const st = $('#fillStatus');
+  const text = $('#desc').value.trim();
+  if (!text) { st.dataset.kind = 'keep'; setMsg(st, 'Write a sentence or two about what you need first.', 'bad'); $('#desc').focus(); return; }
+  fillCtl = new AbortController(); const ctl = fillCtl;
+  $('#fillBtn').disabled = true; $('#fillStop').hidden = false; st.dataset.kind = 'keep';
+  setMsg(st, 'Reading your request…', 'busy');
+  try {
+    const res = await sample.json(fillPrompt(text), { modelTier:'quick', signal: ctl.signal });
+    applyFill(res);
+    setMsg(st, 'Done. The form below is filled in. Check it, then copy or polish the prompt.', 'ok');
+  } catch (e) {
+    if (e && e.code === 'cancelled') setMsg(st, 'Stopped.', '');
+    else { setMsg(st, errText(e), 'bad'); onAiError(e); }
+  } finally {
+    $('#fillBtn').disabled = aiState !== 'on'; $('#fillStop').hidden = true;
+  }
+});
+$('#fillStop').addEventListener('click', () => { if (fillCtl) fillCtl.abort(); });
+$('#desc').addEventListener('input', saveState);
+
+function polishPrompt(draft, catId, p){
+  return 'You are an expert prompt engineer. Rewrite the draft below into the most effective prompt for ' + p + ' (' + CATS[catId].label.toLowerCase() + ').\n\n' +
+    'Rules:\n' +
+    '- Keep every fact, requirement and constraint in the draft. Do not add new facts. If something important is missing, add a short [placeholder] in square brackets for the person to fill in.\n' +
+    '- Follow ' + p + ' prompt conventions: ' + (CONV[p] || 'a clear, well-structured prompt') + '.\n' +
+    '- Make it clear and specific, put the most important information first, and remove repetition.\n' +
+    '- Write in the same language as the draft.\n' +
+    '- Reply with only the finished prompt, ready to paste. No introduction, no notes, no code fences.\n\n' +
+    'Draft:\n"""\n' + draft + '\n"""';
+}
+const unfence = t => { t = String(t || '').trim(); const m = t.match(/^```[\w-]*\n([\s\S]*?)\n```$/); return m ? m[1].trim() : t; };
+
+let polCtl = null;
+$('#polishBtn').addEventListener('click', async () => {
+  if (!sample || !builtText) return;
+  if (polCtl) polCtl.abort();
+  polCtl = new AbortController(); const ctl = polCtl;
+  const draft = builtText, catId = state.cat, p = plat();
+  polBusy = true; state.tab = 'ai'; renderTabs();
+  const pre = $('#polished'), msg = $('#aiMsg');
+  pre.textContent = ''; setMsg(msg, 'Thinking… this can take up to a minute.', 'busy');
+  $('#polishBtn').disabled = true; $('#polStop').hidden = false;
+  try {
+    const r = await sample(polishPrompt(draft, catId, p), { signal: ctl.signal, cache: false, onText: ({ text }) => { setMsg(msg, 'Writing…', 'busy'); pre.textContent = text; renderCounts(); } });
+    const text = unfence(r.text);
+    pre.textContent = text;
+    state.polished = { text, draft, cat: catId, p };
+    setMsg(msg, r.truncated ? 'This answer was cut short. Try a shorter draft.' : 'Polished for ' + p + '. Review it before you use it.', r.truncated ? 'bad' : 'ok');
+    saveState();
+  } catch (e) {
+    if (e && e.code === 'cancelled') { if (e.text) pre.textContent = e.text; setMsg(msg, 'Stopped. Copy this partial version or polish again.', ''); }
+    else { pre.textContent = (e && e.text) || (state.polished ? state.polished.text : ''); setMsg(msg, errText(e), 'bad'); onAiError(e); }
+  } finally {
+    polBusy = false; $('#polStop').hidden = true; $('#polishBtn').disabled = !builtText; renderCounts();
+  }
+});
+$('#polStop').addEventListener('click', () => { if (polCtl) polCtl.abort(); });
+
+/* ---------- start from an image or video ---------- */
+let mode = 'words', media = null, mediaTarget = 'image', imgLimits = null, mediaBusy = false, mediaCtl = null;
+
+$('#modes').addEventListener('click', e => {
+  const b = e.target.closest('.mode'); if (!b) return;
+  mode = b.dataset.mode; renderAI();
+});
+
+function toJpeg(src, w, h){
+  const s = Math.min(1, 1600 / Math.max(w, h, 1));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('encode')), 'image/jpeg', 0.86));
+}
+function seek(v, t){
+  return new Promise(res => {
+    const done = () => { v.removeEventListener('seeked', done); clearTimeout(tm); res(); };
+    const tm = setTimeout(done, 4000);
+    v.addEventListener('seeked', done);
+    v.currentTime = Math.max(0, t);
+  });
+}
+async function videoFrames(file, n){
+  const url = URL.createObjectURL(file);
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  try {
+    await new Promise((res, rej) => {
+      const tm = setTimeout(() => rej(new Error('timeout')), 15000);
+      v.addEventListener('loadeddata', () => { clearTimeout(tm); res(); }, { once:true });
+      v.addEventListener('error', () => { clearTimeout(tm); rej(new Error('decode')); }, { once:true });
+    });
+    if (!v.videoWidth) throw new Error('no picture');
+    const d = isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+    const times = !d ? [0] : n === 1 ? [d / 2] : Array.from({ length:n }, (_, i) => Math.min(d - 0.05, d * (0.06 + 0.86 * i / (n - 1))));
+    const frames = [];
+    for (const t of times) { await seek(v, t); frames.push(await toJpeg(v, v.videoWidth, v.videoHeight)); }
+    return { frames, w: v.videoWidth, h: v.videoHeight, duration: d };
+  } finally {
+    v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url);
+  }
+}
+const fmtDur = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+function nearestOpt(value, opts, toNum){
+  let best = '', bd = Infinity;
+  opts.forEach(o => { const d = Math.abs(toNum(o) - value); if (d < bd) { bd = d; best = o; } });
+  return best;
+}
+
+function renderMedia(){
+  const on = aiState === 'on', blocked = on && !imgLimits;
+  $('#mediaOff').hidden = !blocked;
+  $('#drop').hidden = !!media || blocked;
+  $('#mediaPick').hidden = !media;
+  $('#mediaBtn').disabled = !media || !on || !imgLimits || mediaBusy;
+  $('#mediaTarget').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.target === mediaTarget)));
+  const hint = $('#mediaHint');
+  hint.textContent = media && media.kind === 'image' && mediaTarget === 'video'
+    ? 'Image to video: the prompt describes how to bring this picture to life. In your video tool, upload the same image as the first frame.'
+    : media && media.kind === 'video' && mediaTarget === 'image' ? 'Video to image: the prompt recreates the main scene of the clip as one still picture.' : '';
+  hint.hidden = !hint.textContent;
+  if (!media) { $('#thumb').innerHTML = ''; return; }
+  $('#thumb').innerHTML = media.urls.map(u => '<img src="' + u + '" alt="">').join('');
+  $('#mpName').textContent = media.name;
+  $('#mpMeta').textContent = media.kind === 'video'
+    ? 'Video · ' + (media.duration ? fmtDur(media.duration) + ' · ' : '') + media.blobs.length + (media.blobs.length === 1 ? ' frame' : ' frames') + ' for AI to study'
+    : 'Image · ' + media.w + ' × ' + media.h;
+}
+function clearMedia(){ if (media) media.urls.forEach(u => URL.revokeObjectURL(u)); media = null; renderMedia(); }
+
+async function pickMedia(file){
+  const st = $('#fillStatus'); st.dataset.kind = 'keep';
+  const kind = /^video\//.test(file.type) ? 'video' : /^image\//.test(file.type) ? 'image' : '';
+  if (!kind) { setMsg(st, 'That file is not an image or a video. Choose a JPG, PNG, WebP, GIF, MP4 or WebM file.', 'bad'); return; }
+  clearMedia();
+  setMsg(st, kind === 'video' ? 'Taking frames from your video…' : 'Preparing your image…', 'busy');
+  try {
+    let blobs, w, h, duration = 0;
+    if (kind === 'image') {
+      const bmp = await createImageBitmap(file);
+      w = bmp.width; h = bmp.height;
+      const okType = !imgLimits || imgLimits.mediaTypes.includes(file.type);
+      const okSize = !imgLimits || file.size <= imgLimits.maxInputBytes;
+      blobs = [okType && okSize ? file : await toJpeg(bmp, w, h)];
+      if (bmp.close) bmp.close();
+    } else {
+      const n = Math.max(1, Math.min(4, imgLimits ? imgLimits.maxCount : 4));
+      const r = await videoFrames(file, n);
+      blobs = r.frames; w = r.w; h = r.h; duration = r.duration;
+    }
+    media = { name: file.name || (kind === 'video' ? 'Video' : 'Image'), kind, blobs, urls: blobs.map(b => URL.createObjectURL(b)), w, h, duration };
+    mediaTarget = kind;
+    renderMedia();
+    setMsg(st, 'Ready. Choose image or video below, then press Get prompt from this.', '');
+  } catch (err) {
+    setMsg(st, kind === 'video' ? 'This browser could not read that video. Try an MP4 file, or upload a screenshot of it instead.' : 'This browser could not open that image. Try a JPG or PNG file.', 'bad');
+  }
+}
+$('#mediaFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) pickMedia(f); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) pickMedia(f); });
+$('#mpRemove').addEventListener('click', () => { clearMedia(); setMsg($('#fillStatus'), '', ''); $('#mediaFile').click(); });
+$('#mediaTarget').addEventListener('click', e => { const b = e.target.closest('[data-target]'); if (!b) return; mediaTarget = b.dataset.target; renderMedia(); });
+
+function mediaPrompt(m, target, note){
+  const n = m.blobs.length;
+  const src = m.kind === 'video'
+    ? 'The ' + n + ' attached images are frames from one video clip, in time order' + (m.duration ? ', spread across about ' + Math.max(1, Math.round(m.duration)) + ' seconds' : '') + '.'
+    : 'The attached image is the reference.';
+  const goal = target === 'image'
+    ? (m.kind === 'video' ? 'Write settings for an image prompt that recreates the main scene of this clip as one still image.' : 'Write settings for an image prompt that would recreate this image as closely as possible.')
+    : (m.kind === 'video' ? 'Write settings for a video prompt that would recreate this clip as closely as possible: the scene, what happens between the frames, and how the camera moves.'
+      : 'The person wants to turn this still image into a short video clip. Write settings for a video prompt that describes the scene in the image plus a natural motion that brings it to life, with a fitting camera movement.');
+  return src + '\n\n' + goal + '\n\nForm fields:\n' + CATS[target].fields.map(fieldLine).join('\n') + '\n\n' +
+    (note ? 'The person also says:\n"""\n' + note.slice(0, 1000) + '\n"""\nApply these changes.\n\n' : '') +
+    'Instructions:\n' +
+    '- Describe the subject concretely: what it is, colors, materials, clothing, expressions and pose.\n' +
+    '- Never identify real people by name. Describe how they look instead.\n' +
+    (target === 'image' ? '- If the image contains readable text that matters, put it in the text field exactly as written.\n' : '') +
+    '- For "one of" fields use exactly one allowed option. For "list" fields use an array of allowed options. Never use options that are not listed.\n' +
+    '- Write in English unless the person\'s note is in another language.\n\n' +
+    'Reply with only JSON in this shape:\n{"fields": {"<field id>": "<value or array>"}}';
+}
+
+$('#mediaBtn').addEventListener('click', async () => {
+  if (!sample || !media || !imgLimits) return;
+  const st = $('#fillStatus'); st.dataset.kind = 'keep';
+  const m = media, target = mediaTarget, c = CATS[target];
+  mediaCtl = new AbortController(); const ctl = mediaCtl;
+  mediaBusy = true; renderMedia(); $('#mediaStop').hidden = false;
+  setMsg(st, (m.kind === 'video' ? 'Studying your clip…' : 'Studying your image…') + ' This can take up to a minute.', 'busy');
+  try {
+    const res = await sample.json(mediaPrompt(m, target, $('#mediaNote').value.trim()), { images: m.blobs, signal: ctl.signal });
+    const fields = res && typeof res === 'object' ? (res.fields && typeof res.fields === 'object' ? res.fields : res) : null;
+    if (!fields) throw { code:'invalid_json' };
+    const aspect = c.fields.find(f => f.id === 'aspect');
+    if (aspect && !fields.aspect && m.w && m.h) fields.aspect = nearestOpt(Math.log(m.w / m.h), aspect.opts, o => { const [a, b] = o.split(':').map(Number); return Math.log(a / b); });
+    const dur = c.fields.find(f => f.id === 'duration');
+    if (dur && !fields.duration && m.kind === 'video' && m.duration) fields.duration = nearestOpt(m.duration, dur.opts, o => parseFloat(o));
+    applyFill({ category: target, platform: state.platform[target] || c.platforms[0], fields },
+      m.kind === 'image' && target === 'video'
+        ? 'Filled in from your image. In your video tool, upload the same image as the first frame, then use this prompt for the motion.'
+        : 'Filled in from your ' + m.kind + '. Check each field and adjust anything.');
+    setMsg(st, 'Done. The form below is filled in from your ' + m.kind + '. Check it, then copy or polish the prompt.', 'ok');
+  } catch (e) {
+    if (e && e.code === 'cancelled') setMsg(st, 'Stopped.', '');
+    else { setMsg(st, errText(e), 'bad'); if (e && e.code === 'images_unavailable') imgLimits = null; onAiError(e); }
+  } finally {
+    mediaBusy = false; $('#mediaStop').hidden = true; renderMedia();
+  }
+});
+$('#mediaStop').addEventListener('click', () => { if (mediaCtl) mediaCtl.abort(); });
+
+/* ---------- boot ---------- */
+if (!loadState()) {
+  const pr = CATS.chat.presets[0];
+  state.values.chat = clone(pr.v);
+  state.banner = 'Example loaded: ' + pr.name + '. Edit any field to make it yours, or pick another example.';
+}
+if (!state.values[state.cat]) { const pr = presetsOf(state.cat, {})[0]; state.values[state.cat] = Object.assign(clone(pr.v), { _ex: true }); }
+renderAll();
+
+(async () => {
+  try {
+    const c = window.claude;
+    sample = c && typeof c.use === 'function' ? await c.use('sample') : null;
+  } catch (e) { sample = null; }
+  aiState = sample ? 'on' : 'off';
+  if (sample) { try { const l = await sample.limits(); imgLimits = l && l.images ? l.images : null; } catch (e) { imgLimits = null; } }
+  renderAI();
+})();
+})();
+</script>
+</body>
+</html>
