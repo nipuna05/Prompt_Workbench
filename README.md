@@ -45,11 +45,26 @@ Open `index.html` in any modern browser. That's all.
 
 To host it, turn on **GitHub Pages**: go to Settings → Pages, choose Deploy from a branch, then `main`, folder `/ (root)`.
 
+## Project structure
+
+| File | What it is |
+| --- | --- |
+| `src/prompt-workbench.html` | **The source. Edit this one.** It's published as the Claude page, so it starts at `<title>` with no `<html>`, `<head>` or `<body>` (Claude adds those itself). |
+| `index.html` | A standalone copy for browsers and GitHub Pages, generated from the source. Don't edit it by hand. |
+| `build.mjs` | Regenerates `index.html` from the source. Run `node build.mjs` (needs Node.js 18 or later). |
+
+To update the app:
+
+1. Edit `src/prompt-workbench.html`.
+2. Run `node build.mjs`.
+3. Republish the Claude page from the source file.
+4. Commit both files and push to `main`.
+
 ## Add a role or a task
 
-Everything lives in `index.html`:
+The code is in `src/prompt-workbench.html`:
 
 - `WF` is the library of form fields. Fields with a `say` function become a line under "What to deliver". The others are listed under "Details".
 - `WORK` is the list of roles. Each role has a `persona` and `tasks`. Each task has a main-field label (`subj`), a `goal`, the field IDs it uses (`fields`), fixed `deliver` lines, and an example (`ex`).
 
-To add a new task, append an object to a role's `tasks` array. Reuse existing `WF` fields where you can.
+To add a new task, append an object to a role's `tasks` array. Reuse existing `WF` fields where you can. Then run `node build.mjs`.
